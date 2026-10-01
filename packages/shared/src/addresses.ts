@@ -18,12 +18,17 @@ export type Deployment = {
 };
 
 /**
- * Contract addresses per environment. `mainnet` is filled after the owner-approved deploy.
+ * Contract addresses per environment.
  * Env overrides (NEXT_PUBLIC_LAUNCHPAD etc.) take precedence — see getDeployment().
  */
 export const DEPLOYMENTS: Record<"local" | "mainnet", Deployment | null> = {
   local: null,
-  mainnet: null,
+  // twain v1, deployed 2026-10-02 by the owner (contracts/deployments/4663.json)
+  mainnet: {
+    launchpad: "0x2EEBE7D900ef1AC4fc205B0333DdF126E40EC0bC",
+    locker: "0xbFb5eE0D73a609b715122511E1E61877FB6e2e2D",
+    startBlock: 77726483,
+  },
 };
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
