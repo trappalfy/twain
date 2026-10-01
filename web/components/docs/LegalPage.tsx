@@ -10,7 +10,7 @@ export const LEGAL_DRAFT_NOTE = "Draft. Pending legal review.";
 export function LegalPage({ title, intro, sections }: { title: string; intro: string; sections: LegalSection[] }) {
   return (
     <div className="container-page pt-6 md:pt-10">
-      <Card texture className="mx-auto max-w-4xl md:p-12">
+      <Card className="mx-auto max-w-4xl md:p-12">
         <p className="text-13 font-medium uppercase tracking-[0.14em] text-muted">Legal</p>
         <h1 className="mt-3 font-heading text-28 text-text xs:text-40">{title}</h1>
 

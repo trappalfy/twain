@@ -10,8 +10,8 @@ const LIMITS = {
 
 export type LimitKind = keyof typeof LIMITS;
 
-const g = globalThis as unknown as { __lancioForumHits?: Map<string, number[]> };
-const hits = (g.__lancioForumHits ??= new Map<string, number[]>());
+const g = globalThis as unknown as { __twainForumHits?: Map<string, number[]> };
+const hits = (g.__twainForumHits ??= new Map<string, number[]>());
 
 /** Records one action. Returns seconds to wait when the limit is reached (nothing recorded), else 0. */
 export function takeRateLimit(kind: LimitKind, address: string): number {

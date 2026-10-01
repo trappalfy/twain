@@ -1,7 +1,7 @@
 import { config } from "@/lib/config";
 import { BannerDismiss } from "./BannerDismiss";
 
-export const BANNER_STORAGE_PREFIX = "lancio-banner-dismissed:";
+export const BANNER_STORAGE_PREFIX = "twain-banner-dismissed:";
 
 /**
  * Thin dark announcement bar above the header (brief §9.2). Driven by NEXT_PUBLIC_BANNER_*; hidden when empty.

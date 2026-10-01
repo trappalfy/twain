@@ -1,4 +1,4 @@
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import { BaseError, ContractFunctionRevertedError, InsufficientFundsError, UserRejectedRequestError } from "viem";
 
 /** Custom errors not covered by COPY.errors. */

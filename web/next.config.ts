@@ -3,7 +3,7 @@ import createMDX from "@next/mdx";
 
 const nextConfig: NextConfig = {
   pageExtensions: ["js", "jsx", "md", "mdx", "ts", "tsx"],
-  transpilePackages: ["@lancio/shared"],
+  transpilePackages: ["@twain/shared"],
   turbopack: {
     // Optional peer deps of @coinbase/cdp-sdk (via wagmi's baseAccount connector); dynamic-imported, never used here.
     resolveAlias: Object.fromEntries(

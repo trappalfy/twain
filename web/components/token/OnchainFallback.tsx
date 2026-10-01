@@ -10,8 +10,8 @@ import {
   type AssetInfo,
   type Hex,
   type TokenDetail,
-} from "@lancio/shared";
-import { launchpadAbi, stateViewAbi, tokenAbi } from "@lancio/shared/abi";
+} from "@twain/shared";
+import { launchpadAbi, stateViewAbi, tokenAbi } from "@twain/shared/abi";
 import { useMemo } from "react";
 import { zeroAddress } from "viem";
 import { useReadContracts } from "wagmi";
@@ -143,7 +143,6 @@ export function OnchainFallback({
       <div className="container-page py-10 md:py-16">
         <Card>
           <EmptyState
-            image="/brand/painting-gate.png"
             title="This address is not a coin launched here."
             description={<span className="font-mono break-all">{address}</span>}
             action={

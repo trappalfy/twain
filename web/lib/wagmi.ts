@@ -1,6 +1,6 @@
 import { connectorsForWallets, getDefaultConfig } from "@rainbow-me/rainbowkit";
 import { injectedWallet } from "@rainbow-me/rainbowkit/wallets";
-import { robinhood } from "@lancio/shared";
+import { robinhood } from "@twain/shared";
 import { defineChain } from "viem";
 import { createConfig, http } from "wagmi";
 import { config } from "./config";
@@ -20,7 +20,7 @@ const transports = { [appChain.id]: http(config.rpcUrl) };
  */
 export const wagmiConfig = config.walletConnectProjectId
   ? getDefaultConfig({
-      appName: "Lancio",
+      appName: "twain",
       appUrl: config.siteUrl,
       projectId: config.walletConnectProjectId,
       chains: [appChain],
@@ -32,8 +32,8 @@ export const wagmiConfig = config.walletConnectProjectId
       transports,
       ssr: true,
       connectors: connectorsForWallets([{ groupName: "Browser wallet", wallets: [injectedWallet] }], {
-        appName: "Lancio",
-        projectId: "lancio-injected-only",
+        appName: "twain",
+        projectId: "twain-injected-only",
       }),
     });
 

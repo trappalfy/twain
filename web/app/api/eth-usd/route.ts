@@ -1,4 +1,4 @@
-import type { EthUsdResponse } from "@lancio/shared";
+import type { EthUsdResponse } from "@twain/shared";
 import { fetchEthUsd } from "@/lib/server/eth-usd";
 
 /**

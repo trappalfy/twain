@@ -3,7 +3,7 @@
  * Validates with the same rules as the contract and the form, normalizes links, stores the JSON.
  * → { uri, url } — `uri` is the metadataURI passed to launchpad.create().
  */
-import { TOKEN_LIMITS } from "@lancio/shared";
+import { TOKEN_LIMITS } from "@twain/shared";
 import { z } from "zod";
 import {
   nameValid,

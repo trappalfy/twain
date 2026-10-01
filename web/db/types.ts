@@ -1,5 +1,5 @@
 /** Forum REST shapes (app/api/forum/**, app/api/auth/**). Client-safe: types and constants only. */
-import type { Hex } from "@lancio/shared";
+import type { Hex } from "@twain/shared";
 
 export type ForumSort = "hot" | "new" | "top";
 export const FORUM_SORTS: readonly ForumSort[] = ["hot", "new", "top"];

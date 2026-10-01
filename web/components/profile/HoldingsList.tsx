@@ -1,6 +1,6 @@
 "use client";
 
-import { assetToUsd, formatAsset, formatTokens, formatUsd, type AssetInfo, type Holding } from "@lancio/shared";
+import { assetToUsd, formatAsset, formatTokens, formatUsd, type AssetInfo, type Holding } from "@twain/shared";
 import Link from "next/link";
 import { AssetIcon, TokenImage } from "@/components/common";
 

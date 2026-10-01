@@ -13,7 +13,7 @@ FORK_URL="${RPC_URL_4663:-https://rpc.mainnet.chain.robinhood.com}"
 
 if ! cast chain-id --rpc-url $RPC >/dev/null 2>&1; then
   # --hardfork cancun: skips the EIP-2935 blockhash system call, which needs historical state the public RPC prunes after ~10 min
-  anvil --fork-url "$FORK_URL" --port 8545 --host 127.0.0.1 --block-time 1 --hardfork cancun > /tmp/lancio-anvil.log 2>&1 &
+  anvil --fork-url "$FORK_URL" --port 8545 --host 127.0.0.1 --block-time 1 --hardfork cancun > /tmp/twain-anvil.log 2>&1 &
   ANVIL_PID=$!
   trap 'kill $ANVIL_PID 2>/dev/null' EXIT
   until cast chain-id --rpc-url $RPC >/dev/null 2>&1; do sleep 0.5; done
@@ -24,7 +24,9 @@ PK=0xac0974bec39a17e36ba4a6b4d238ff944bacb478cbed5efcae784d7bf4f2ff80
 export PROTOCOL_OWNER=0xf39Fd6e51aad88F6F4ce6aB8827279cffFb92266
 export PROTOCOL_TREASURY=0x70997970C51812dc3A010C7d01b50e0d17dc79C8
 export DEPLOY_NAME=local
-eval "$(cd "$ROOT/contracts" && node script/asset-mcaps.mjs)"
+# A plain assignment so `set -e` stops here if the price script fails (eval "$(…)" would carry on with no assets).
+MCAPS=$(cd "$ROOT/contracts" && node script/asset-mcaps.mjs)
+eval "$MCAPS"
 START=$(cast block-number --rpc-url $RPC)
 (cd "$ROOT/contracts" && forge script script/Deploy.s.sol --rpc-url $RPC --broadcast --private-key $PK >/dev/null)
 
@@ -55,5 +57,5 @@ NEXT_PUBLIC_LOCKER=$LOCKER
 NEXT_PUBLIC_START_BLOCK=$START
 ENV
 echo "Local chain ready: launchpad $LP  locker $LOCKER  startBlock $START"
-echo "Test wallets: import anvil keys from /tmp/lancio-anvil.log into your wallet, network RPC $RPC, chainId 4663."
+echo "Test wallets: import anvil keys from /tmp/twain-anvil.log into your wallet, network RPC $RPC, chainId 4663."
 if [ -n "${ANVIL_PID:-}" ]; then wait $ANVIL_PID; fi

@@ -1,14 +1,13 @@
 "use client";
 
-import { shortAddress } from "@lancio/shared";
+import { shortAddress } from "@twain/shared";
 import { ConnectButton } from "@rainbow-me/rainbowkit";
 import { ChevronDown, Coins, Copy, LogOut, User } from "lucide-react";
 import { toast } from "sonner";
 import { useDisconnect, useSwitchChain } from "wagmi";
-import { LancioMark } from "@/components/brand/LancioMark";
 import { Identicon } from "@/components/common/Identicon";
-import { Button } from "@/components/ui/Button";
 import { Dropdown } from "@/components/ui/Dropdown";
+import { LiquidButton } from "@/components/ui/liquid-glass";
 import { toFriendlyError, isUserRejection } from "@/lib/errors";
 import { cn } from "@/lib/utils";
 import { appChain } from "@/lib/wagmi";
@@ -16,9 +15,10 @@ import { appChain } from "@/lib/wagmi";
 function SwitchChainButton({ className }: { className?: string }) {
   const { switchChain, isPending } = useSwitchChain();
   return (
-    <Button
-      variant="accent"
-      loading={isPending}
+    <LiquidButton
+      variant="primary"
+      size="md"
+      disabled={isPending}
       className={className}
       onClick={() =>
         switchChain(
@@ -27,45 +27,21 @@ function SwitchChainButton({ className }: { className?: string }) {
         )
       }
     >
-      Switch to Robinhood Chain
-    </Button>
+      Switch network
+    </LiquidButton>
   );
 }
 
-type Tone = "default" | "cream";
-
-/** Shared shell of both header states: a pill with a thin gold edge; over the hero it sits on a dark veil. */
-const shell = (tone: Tone) =>
-  cn(
-    "inline-flex h-10 items-center rounded-full border border-accent/35 text-sm font-medium transition-[border-color,background-color] duration-200 hover:border-accent/70",
-    tone === "cream" ? "bg-bg/40 text-cream" : "bg-surface text-text",
-  );
-
-/** Not connected: a gold seal with the Lancio mark (turns like a coin on hover) + "Connect". */
-function ConnectSeal({ tone, onClick, className }: { tone: Tone; onClick: () => void; className?: string }) {
-  return (
-    <button type="button" onClick={onClick} className={cn(shell(tone), "group justify-center gap-2.5 pr-4 pl-1 whitespace-nowrap select-none", className)}>
-      <span
-        aria-hidden
-        className="grid size-8 shrink-0 place-items-center rounded-full bg-[radial-gradient(circle_at_35%_30%,#ecd08f,#c9a058_55%,#8a6630)] text-[#2a1b0c] shadow-[inset_0_0_0_1.5px_rgb(42_27_12/0.35),0_1px_3px_rgb(0_0_0/0.5)] transition-transform duration-500 motion-safe:group-hover:rotate-[36deg]"
-      >
-        <LancioMark className="w-5" />
-      </span>
-      Connect
-    </button>
-  );
-}
-
-function AccountMenu({ address, tone, className }: { address: string; tone: Tone; className?: string }) {
+function AccountMenu({ address, className }: { address: string; className?: string }) {
   const { disconnect } = useDisconnect();
   return (
     <Dropdown
       trigger={
-        <button type="button" className={cn(shell(tone), "gap-2 pr-3 pl-1", className)}>
-          <Identicon address={address} size={32} />
-          <span className="font-mono text-13">{shortAddress(address)}</span>
-          <ChevronDown size={16} className="opacity-70" />
-        </button>
+        <LiquidButton variant="primary" size="md" className={cn("gap-2 pl-1.5 pr-3.5", className)}>
+          <Identicon address={address} size={30} />
+          <span className="font-mono text-13 font-medium">{shortAddress(address)}</span>
+          <ChevronDown size={16} className="opacity-80" />
+        </LiquidButton>
       }
       items={[
         { label: "Profile", icon: <User />, href: "/profile" },
@@ -84,15 +60,24 @@ function AccountMenu({ address, tone, className }: { address: string; tone: Tone
   );
 }
 
-/** Connect (gold seal) → address pill with menu; wrong network → "Switch to Robinhood Chain". */
-export function WalletButton({ className, tone = "default" }: { className?: string; tone?: Tone }) {
+/**
+ * The dark (ink) glass button of the nav capsule, in the slot the header brief gives "Launch app":
+ * Connect wallet → address with a menu; wrong network → Switch network.
+ */
+export function WalletButton({ className }: { className?: string }) {
   return (
     <ConnectButton.Custom>
       {({ account, chain, openConnectModal, mounted }) => {
-        if (!mounted) return <div aria-hidden className={cn("h-10 w-32", className)} />;
-        if (!account || !chain) return <ConnectSeal tone={tone} onClick={openConnectModal} className={className} />;
+        if (!mounted) return <div aria-hidden className={cn("h-11 w-36 rounded-full", className)} />;
+        if (!account || !chain) {
+          return (
+            <LiquidButton variant="primary" size="md" className={className} onClick={openConnectModal}>
+              Connect wallet
+            </LiquidButton>
+          );
+        }
         if (chain.unsupported) return <SwitchChainButton className={className} />;
-        return <AccountMenu address={account.address} tone={tone} className={className} />;
+        return <AccountMenu address={account.address} className={className} />;
       }}
     </ConnectButton.Custom>
   );

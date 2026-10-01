@@ -1,6 +1,6 @@
 "use client";
 
-import { explorerTx } from "@lancio/shared";
+import { explorerTx } from "@twain/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { createElement, useCallback, useState } from "react";
 import { toast } from "sonner";

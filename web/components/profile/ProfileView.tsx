@@ -1,6 +1,6 @@
 "use client";
 
-import type { AccountResponse, Hex } from "@lancio/shared";
+import type { AccountResponse, Hex } from "@twain/shared";
 import { useState, type ReactNode } from "react";
 import { useAccount } from "wagmi";
 import { AccountPostsTab } from "@/components/forum/AccountPostsTab";

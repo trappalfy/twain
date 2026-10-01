@@ -1,4 +1,4 @@
-import { formatAsset, formatUsd, type TokenSummary } from "@lancio/shared";
+import { formatAsset, formatUsd, type TokenSummary } from "@twain/shared";
 import { cn } from "@/lib/utils";
 
 /** A coin's market cap in USD, or in its asset when the asset has no USD price. */

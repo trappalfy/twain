@@ -1,6 +1,6 @@
-// Stub for optional deps pulled in by wallet SDKs (@coinbase/cdp-sdk → @x402/*) that Lancio never calls.
+// Stub for optional deps pulled in by wallet SDKs (@coinbase/cdp-sdk → @x402/*) that twain never calls.
 const unavailable = () => {
-  throw new Error("x402 is not available in Lancio");
+  throw new Error("x402 is not available in twain");
 };
 export const toClientEvmSigner = unavailable;
 export const x402Client = unavailable;

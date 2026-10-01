@@ -1,6 +1,6 @@
 "use client";
 
-import type { TokenSummary } from "@lancio/shared";
+import type { TokenSummary } from "@twain/shared";
 import Link from "next/link";
 import { useState } from "react";
 import { EmptyState, PillTabs } from "@/components/ui";

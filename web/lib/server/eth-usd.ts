@@ -1,4 +1,4 @@
-import { ethUsdSources } from "@lancio/shared";
+import { ethUsdSources } from "@twain/shared";
 
 const SOURCES = ethUsdSources(process.env.COINGECKO_API_KEY);
 

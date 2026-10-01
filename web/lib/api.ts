@@ -15,7 +15,7 @@ import type {
   TokensResponse,
   TopResponse,
   TradesResponse,
-} from "@lancio/shared";
+} from "@twain/shared";
 import { keepPreviousData, useQuery } from "@tanstack/react-query";
 import { config } from "./config";
 
@@ -47,7 +47,7 @@ type ServerIndexer = { get: <T>(path: string, params: Params) => Promise<T> };
 async function get<T>(path: string, params?: Params, signal?: AbortSignal): Promise<T> {
   if (config.prelaunch) return (await import("./prelaunch")).prelaunchGet<T>(path, params ?? {}, signal);
   if (typeof window === "undefined") {
-    const builtin = (globalThis as { __lancioIndexer?: ServerIndexer }).__lancioIndexer;
+    const builtin = (globalThis as { __twainIndexer?: ServerIndexer }).__twainIndexer;
     if (builtin) return builtin.get<T>(path, params ?? {});
   }
   // Built-in indexer from the browser: same origin. Server without the in-process hook: absolute site URL.
@@ -89,21 +89,21 @@ export const api = {
 
 /* ------------------------------------------------------------------ query keys */
 export const qk = {
-  all: ["lancio"] as const,
-  assets: ["lancio", "assets"] as const,
-  tokens: (q: TokensQuery) => ["lancio", "tokens", q] as const,
-  token: (a: string) => ["lancio", "token", lc(a)] as const,
-  candles: (a: string, i: Interval) => ["lancio", "candles", lc(a), i] as const,
-  trades: (a: string) => ["lancio", "trades", lc(a)] as const,
-  holders: (a: string) => ["lancio", "holders", lc(a)] as const,
-  stats: (w: string) => ["lancio", "stats", w] as const,
-  daily: (d: number) => ["lancio", "daily", d] as const,
-  account: (a: string) => ["lancio", "account", lc(a)] as const,
-  holdings: (a: string) => ["lancio", "holdings", lc(a)] as const,
-  accountTrades: (a: string) => ["lancio", "accountTrades", lc(a)] as const,
-  search: (q: string) => ["lancio", "search", q] as const,
-  top: (l: number) => ["lancio", "top", l] as const,
-  ethUsd: ["lancio", "ethUsd"] as const,
+  all: ["twain"] as const,
+  assets: ["twain", "assets"] as const,
+  tokens: (q: TokensQuery) => ["twain", "tokens", q] as const,
+  token: (a: string) => ["twain", "token", lc(a)] as const,
+  candles: (a: string, i: Interval) => ["twain", "candles", lc(a), i] as const,
+  trades: (a: string) => ["twain", "trades", lc(a)] as const,
+  holders: (a: string) => ["twain", "holders", lc(a)] as const,
+  stats: (w: string) => ["twain", "stats", w] as const,
+  daily: (d: number) => ["twain", "daily", d] as const,
+  account: (a: string) => ["twain", "account", lc(a)] as const,
+  holdings: (a: string) => ["twain", "holdings", lc(a)] as const,
+  accountTrades: (a: string) => ["twain", "accountTrades", lc(a)] as const,
+  search: (q: string) => ["twain", "search", q] as const,
+  top: (l: number) => ["twain", "top", l] as const,
+  ethUsd: ["twain", "ethUsd"] as const,
 };
 
 /* ------------------------------------------------------------------ hooks */

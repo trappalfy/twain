@@ -1,6 +1,6 @@
 /** Read-side helpers for the REST API: row → API shape, rolling windows over `trade`, USD at current asset prices. */
 import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type Column } from "drizzle-orm";
-import type { AssetInfo, Hex, TokenDetail, TokenSummary, Trade, TradesResponse } from "@lancio/shared";
+import type { AssetInfo, Hex, TokenDetail, TokenSummary, Trade, TradesResponse } from "@twain/shared";
 import { formatUnits } from "viem";
 import type { IxDb } from "./db";
 import { assetInfos, usdPerUnit } from "./prices";

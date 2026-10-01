@@ -25,7 +25,7 @@ export async function handle(req: Request): Promise<Response> {
 }
 
 export async function ixGet<T>(path: string, params: Record<string, string | number | undefined | null>): Promise<T> {
-  const url = new URL(`/api${path}`, "http://lancio.internal");
+  const url = new URL(`/api${path}`, "http://twain.internal");
   for (const [k, v] of Object.entries(params)) if (v !== undefined && v !== null && v !== "") url.searchParams.set(k, String(v));
   const res = await app.fetch(new Request(url));
   if (!res.ok) throw new ApiError(res.status, `${res.status} — ${path}`);

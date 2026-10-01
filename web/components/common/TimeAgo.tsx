@@ -1,6 +1,6 @@
 "use client";
 
-import { timeAgo } from "@lancio/shared";
+import { timeAgo } from "@twain/shared";
 import { useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 

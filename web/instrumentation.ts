@@ -6,5 +6,5 @@
 export async function register() {
   if (process.env.NEXT_RUNTIME !== "nodejs") return;
   const { ixGet } = await import("./indexer/server");
-  (globalThis as { __lancioIndexer?: unknown }).__lancioIndexer = { get: ixGet };
+  (globalThis as { __twainIndexer?: unknown }).__twainIndexer = { get: ixGet };
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { formatAsset, formatTokens, sig, type AssetInfo } from "@lancio/shared";
+import { formatAsset, formatTokens, sig, type AssetInfo } from "@twain/shared";
 import { useId, type ReactNode } from "react";
 import { AssetIcon } from "@/components/common/AssetIcon";
 import { Button, type ButtonVariant } from "@/components/ui/Button";

@@ -1,4 +1,4 @@
-import { COPY, PARAMS, formatAsset, formatUsd, mcapFromPriceX18, startPriceX18, type ListedAsset } from "@lancio/shared";
+import { COPY, PARAMS, formatAsset, formatUsd, mcapFromPriceX18, startPriceX18, type ListedAsset } from "@twain/shared";
 import { Globe, Image as ImageIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { AssetIcon } from "@/components/common";

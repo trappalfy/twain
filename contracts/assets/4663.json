@@ -5,6 +5,7 @@
 
     { "symbol": "TSLA", "kind": "stock", "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d" },
     { "symbol": "NVDA", "kind": "stock", "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec" },
+    { "symbol": "AAPL", "kind": "stock", "address": "0xaF3D76f1834A1d425780943C99Ea8A608f8a93f9" },
     { "symbol": "SPCX", "kind": "stock", "address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea" },
     { "symbol": "SPY", "kind": "stock", "address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c" },
     { "symbol": "GOOGL", "kind": "stock", "address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3" },

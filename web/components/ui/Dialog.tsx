@@ -17,7 +17,7 @@ type DialogProps = {
   className?: string;
 };
 
-/** Centered modal: --surface, radius 28, Cinzel-free title (UI font). */
+/** Centered modal: --surface, radius 28. */
 export function Dialog({ open, onOpenChange, trigger, title, description, children, footer, className }: DialogProps) {
   return (
     <D.Root open={open} onOpenChange={onOpenChange}>

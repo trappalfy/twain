@@ -1,4 +1,4 @@
-import type { Hex, SortKey, WindowKey } from "@lancio/shared";
+import type { Hex, SortKey, WindowKey } from "@twain/shared";
 
 /** Explore list state, kept in the URL query: /?sort=&window=&asset=&page= (defaults are omitted). */
 export type ExploreState = { sort: SortKey; window: WindowKey; asset: Hex | "all"; page: number };

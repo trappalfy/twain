@@ -4,7 +4,7 @@
  * resizes and re-encodes (drops EXIF/metadata; GIF and animated WEBP keep their animation), then stores.
  * → { uri, url }
  */
-import { TOKEN_LIMITS } from "@lancio/shared";
+import { TOKEN_LIMITS } from "@twain/shared";
 import sharp from "sharp";
 import { store, StorageError } from "@/lib/storage";
 import { clientIp, jsonError, rateLimited } from "./_limit";

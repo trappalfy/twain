@@ -1,6 +1,6 @@
 "use client";
 
-import { formatPct, shortAddress, type TokenSummary } from "@lancio/shared";
+import { formatPct, shortAddress, type TokenSummary } from "@twain/shared";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AssetIcon, CoinMcap, TimeAgo, TokenImage } from "@/components/common";

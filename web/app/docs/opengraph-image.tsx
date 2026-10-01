@@ -1,7 +1,7 @@
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import { OG_CONTENT_TYPE, OG_SIZE, docsOgImage } from "@/components/docs/og";
 
-export const alt = `Lancio docs: ${COPY.og[1]}`;
+export const alt = `twain docs: ${COPY.og[1]}`;
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 

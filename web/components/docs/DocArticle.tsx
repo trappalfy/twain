@@ -1,6 +1,5 @@
 import { ArrowLeft, ArrowRight } from "lucide-react";
 import type { MDXComponents } from "mdx/types";
-import Image from "next/image";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { isValidElement, type ReactNode } from "react";
@@ -75,26 +74,12 @@ export async function DocArticle({ slug }: { slug: string }) {
 
   return (
     <article className="min-w-0">
-      <Card texture className="md:p-12">
+      <Card className="md:p-12">
         <header className="max-w-3xl">
           <p className="text-13 font-medium uppercase tracking-[0.14em] text-muted">Docs · {String(index + 1).padStart(2, "0")}</p>
           <h1 className="mt-3 font-heading text-28 text-text xs:text-40 lg:text-56">{doc.title}</h1>
           <p className="mt-4 text-base leading-7 text-muted md:text-xl md:leading-8">{doc.summary}</p>
         </header>
-
-        {doc.image && (
-          <figure className="relative mt-8 aspect-[16/9] overflow-hidden rounded-card border border-border/60 md:aspect-[21/9]">
-            <Image
-              src={doc.image.src}
-              alt={doc.image.alt}
-              fill
-              loading="eager"
-              sizes="(min-width: 1232px) 880px, (min-width: 1024px) 70vw, 100vw"
-              className="object-cover"
-            />
-            <div aria-hidden className="absolute inset-0 bg-linear-to-t from-accent-ink/45 via-transparent to-transparent" />
-          </figure>
-        )}
 
         <div className="mt-8 max-w-3xl [&>*:first-child]:mt-0">
           <Content components={docsComponents} />

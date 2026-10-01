@@ -1,18 +1,17 @@
 "use client";
 
 import "@rainbow-me/rainbowkit/styles.css";
-import { RainbowKitProvider, darkTheme, type Theme } from "@rainbow-me/rainbowkit";
+import { RainbowKitProvider, lightTheme, type Theme } from "@rainbow-me/rainbowkit";
 import { QueryClient, QueryClientProvider } from "@tanstack/react-query";
 import * as TooltipPrimitive from "@radix-ui/react-tooltip";
 import { useState, type ReactNode } from "react";
 import { Toaster } from "sonner";
 import { WagmiProvider } from "wagmi";
-import { HeroHeaderProvider } from "@/components/layout/HeroHeaderContext";
 import { appChain, wagmiConfig } from "./wagmi";
 
 /** RainbowKit theme built on CSS variables, so the modal follows the site theme without re-rendering. */
-const base = darkTheme({ accentColor: "#c9a058", accentColorForeground: "#1a120b", borderRadius: "large", overlayBlur: "small" });
-const lancioRkTheme: Theme = {
+const base = lightTheme({ accentColor: "#0e2a3f", accentColorForeground: "#ffffff", borderRadius: "large", overlayBlur: "small" });
+const twainRkTheme: Theme = {
   ...base,
   colors: {
     ...base.colors,
@@ -59,15 +58,15 @@ const lancioRkTheme: Theme = {
 function ThemedToaster() {
   return (
     <Toaster
-      theme="dark"
+      theme="light"
       position="bottom-right"
       closeButton
       toastOptions={{
         classNames: {
-          toast: "bg-surface-2! text-text! border! border-border! rounded-card! shadow-pop! font-sans!",
+          toast: "bg-surface! text-text! border! border-border! rounded-card! shadow-pop! font-sans!",
           description: "text-muted!",
           actionButton: "bg-accent! text-on-accent!",
-          cancelButton: "bg-surface! text-text!",
+          cancelButton: "bg-surface-2! text-text!",
           closeButton: "bg-surface! text-muted! border-border!",
           success: "[&_[data-icon]]:text-buy!",
           error: "[&_[data-icon]]:text-sell!",
@@ -89,9 +88,9 @@ export function Providers({ children }: { children: ReactNode }) {
   return (
     <WagmiProvider config={wagmiConfig}>
       <QueryClientProvider client={queryClient}>
-        <RainbowKitProvider theme={lancioRkTheme} initialChain={appChain} modalSize="compact" appInfo={{ appName: "Lancio" }}>
+        <RainbowKitProvider theme={twainRkTheme} initialChain={appChain} modalSize="compact" appInfo={{ appName: "twain" }}>
           <TooltipPrimitive.Provider delayDuration={150}>
-            <HeroHeaderProvider>{children}</HeroHeaderProvider>
+            {children}
             <ThemedToaster />
           </TooltipPrimitive.Provider>
         </RainbowKitProvider>

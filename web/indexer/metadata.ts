@@ -6,7 +6,7 @@
  * Only ipfs:// (via gateway) and public https:// URLs are fetched — the URI is user-supplied, so no
  * plain http, no localhost / IP-literal hosts (keeps the indexer from being pointed at internal services).
  */
-import type { TokenMeta } from "@lancio/shared";
+import type { TokenMeta } from "@twain/shared";
 import { config } from "@/lib/config";
 
 const GATEWAY = config.ipfsGateway.replace(/\/*$/, "/");

@@ -1,58 +1,49 @@
 @import "tailwindcss";
 
 /*
- * Lancio design tokens (brief §10.1) + contrast fixes.
- * Single dark theme (owner decision 2026-09-28). Every TEXT token is >= 4.5:1 on --bg, --surface and --surface-2
- * (and --muted also on the .graduated-panel gradient). Computed values, WCAG 2.x:
- *   dark:  text 12.4+  muted 5.44+  accent-text 6.56+  buy 5.57+  sell 4.78+ (was #B0493A, 2.9)
- *   filled buttons: on-accent 7.6, on-buy 6.5, on-sell 5.1, on-crimson 8.1
- * --accent / --crimson / --*-bg are fills, never text on --bg.
+ * twain design tokens. Header (nav + hero) follows the twain header brief (liquid glass, section 6.4 below).
+ * The app keeps its earlier token names, remapped to the light "ice" palette. Every TEXT token is >= 4.5:1 on
+ * --bg (#EEF6FF), --surface (#FFF) and --surface-2 (WCAG 2.x, computed):
+ *   text 13.5+  muted 6.8+  accent-text 5.0+  buy 4.9+  sell 4.8+
+ *   filled buttons: white on accent (ink) 14.8, on buy 5.4, on sell 5.3
+ * --brand (#2E9BFF) is 2.9:1 on white: large display text, icons and focus rings only, never body text.
  */
 
-@custom-variant dark (&:where([data-theme="dark"], [data-theme="dark"] *));
-
-:root,
-[data-theme="dark"] {
-  color-scheme: dark;
-  --bg: #14100c;
-  --surface: #1e1712;
-  --surface-2: #2a2019;
-  --border: #3a2e22;
-  --text: #ede2cd;
-  --muted: #a89479;
-  --accent: #c9a058;
-  --accent-text: #c9a058;
-  --accent-ink: #1a120b;
-  --on-accent: #1a120b;
-  --accent-soft: color-mix(in srgb, #c9a058 16%, transparent);
-  --buy: #8fa05a;
-  --sell: #d0735f;
-  --buy-bg: #8fa05a;
-  --on-buy: #1a120b;
-  --sell-bg: #a94536;
-  --on-sell: #f6efe3;
-  --crimson: #7a2a22;
-  --on-crimson: #f1eadf;
-  --cream: #f1eadf;
-  --pill-active: #3a2e22;
-  --overlay: rgb(10 8 6 / 0.72);
-  --shadow: 0 1px 0 0 rgb(255 236 210 / 0.03) inset, 0 18px 40px -20px rgb(0 0 0 / 0.65);
-  --shadow-pop: 0 16px 48px -12px rgb(0 0 0 / 0.7), 0 0 0 1px var(--border);
-  --texture-opacity: 0.04;
-}
-
 :root {
-  --header-h: 64px;
-}
-@media (min-width: 768px) {
-  :root {
-    --header-h: 76px;
-  }
+  color-scheme: light;
+  --bg: #eef6ff;
+  --surface: #ffffff;
+  --surface-2: #f1f6fc;
+  --border: #d5e3f1;
+  --text: #0e2a3f;
+  --muted: #3d5872;
+  --accent: #0e2a3f;
+  --accent-text: #1468c7;
+  --accent-ink: #0e2a3f;
+  --on-accent: #ffffff;
+  --accent-soft: color-mix(in srgb, #2e9bff 13%, transparent);
+  --buy: #0a7a4f;
+  --sell: #c73439;
+  --buy-bg: #0a7a4f;
+  --on-buy: #ffffff;
+  --sell-bg: #c73439;
+  --on-sell: #ffffff;
+  --crimson: #c73439;
+  --on-crimson: #ffffff;
+  --cream: #ffffff;
+  --pill-active: #ffffff;
+  --overlay: rgb(14 42 63 / 0.32);
+  --shadow: 0 1px 2px rgb(14 42 63 / 0.04), 0 12px 32px -14px rgb(20 70 120 / 0.16);
+  --shadow-pop: 0 16px 48px -12px rgb(20 70 120 / 0.28), 0 0 0 1px var(--border);
+  /* Room the fixed nav capsule takes at the top of every page: 18px offset + 64px capsule + 18px gap. */
+  --header-h: 100px;
 }
 
 /* Colours: utilities resolve to the live CSS variable (theme switch without re-render). */
 @theme inline {
   --color-*: initial;
+  --color-white: #ffffff;
+  --color-black: #000000;
   --color-bg: var(--bg);
   --color-surface: var(--surface);
   --color-surface-2: var(--surface-2);
@@ -80,8 +71,7 @@
 }
 
 @theme {
-  --font-display: var(--font-cinzel), "Times New Roman", serif;
-  --font-sans: var(--font-inter), ui-sans-serif, system-ui, sans-serif;
+  --font-display: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
   --font-mono: var(--font-jetbrains), ui-monospace, "SFMono-Regular", monospace;
 
   /* Scale 12/13/14/16/20/28/40/56 — Tailwind's xs/sm/base/xl + these. */
@@ -94,7 +84,7 @@
   --text-56: 3.5rem;
   --text-56--line-height: 3.75rem;
 
-  --tracking-display: 0.06em;
+  --tracking-display: -0.02em;
 
   --radius-section: 28px;
   --radius-card: 20px;
@@ -119,10 +109,10 @@
     -moz-osx-font-smoothing: grayscale;
   }
   ::selection {
-    background: color-mix(in srgb, var(--accent) 35%, transparent);
+    background: color-mix(in srgb, var(--color-brand) 28%, transparent);
   }
   :focus-visible {
-    outline: 2px solid var(--accent);
+    outline: 2px solid var(--color-brand);
     outline-offset: 2px;
   }
   button:not(:disabled),
@@ -143,55 +133,113 @@
   padding-inline: 16px;
 }
 
-/* Hero sections that sit under the (transparent) sticky header. */
+/* Sections that start at the very top of the page, under the fixed nav capsule (the home hero). */
 @utility under-header {
   margin-top: calc(-1 * var(--header-h));
   padding-top: var(--header-h);
 }
 
-/* Display heading (Cinzel: caps, tracking). Use for page/section titles and slogans only.
-   The --heading-* variables are set by the temporary font preview (lib/font-options.ts). */
+/* Page and section titles: Sora 600, slightly tight. */
 @utility font-heading {
   font-family: var(--font-display);
-  font-weight: var(--heading-weight, 600);
-  letter-spacing: var(--heading-tracking, var(--tracking-display));
-  font-variation-settings: var(--heading-variation, normal);
+  font-weight: 600;
+  letter-spacing: var(--tracking-display);
   font-variant-numeric: normal;
-}
-
-/* Barely-there canvas weave for big panels (3–5% opacity). Works over any background. */
-@utility canvas-texture {
-  position: relative;
-  isolation: isolate;
-  &::before {
-    content: "";
-    position: absolute;
-    inset: 0;
-    z-index: -1;
-    border-radius: inherit;
-    pointer-events: none;
-    opacity: var(--texture-opacity);
-    background-image:
-      url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='220' height='220'%3E%3Cfilter id='n' x='0' y='0'%3E%3CfeTurbulence type='fractalNoise' baseFrequency='.85' numOctaves='3' stitchTiles='stitch'/%3E%3CfeColorMatrix type='saturate' values='0'/%3E%3C/filter%3E%3Crect width='100%25' height='100%25' filter='url(%23n)'/%3E%3C/svg%3E"),
-      repeating-linear-gradient(0deg, rgb(0 0 0 / 0.55) 0 1px, transparent 1px 3px),
-      repeating-linear-gradient(90deg, rgb(0 0 0 / 0.4) 0 1px, transparent 1px 3px);
-  }
-}
-
-/* Graduated panel: warm --surface → antique gold at low alpha. Accent share stays <= ~15%,
-   which keeps --muted >= 4.5:1 (4.6). Pair with canvas-texture. */
-@utility graduated-panel {
-  background:
-    radial-gradient(110% 90% at 100% 0%, color-mix(in srgb, var(--accent) 10%, transparent) 0%, transparent 70%),
-    linear-gradient(160deg, var(--surface) 35%, color-mix(in srgb, var(--accent) 6%, var(--surface)) 100%);
-  border: 1px solid color-mix(in srgb, var(--accent) 28%, var(--border));
 }
 
 @utility tabular {
   font-variant-numeric: tabular-nums;
 }
 
-/* Paintings in empty states / docs: muted and darkened so they never compete with data. */
-@utility painting-muted {
-  filter: saturate(0.8) brightness(0.72) contrast(0.95);
+/* ---------- twain tokens ---------- */
+@theme {
+  --color-ink: #0E2A3F;
+  --color-ink-2: #3D5872;
+  --color-brand: #2E9BFF;
+  --color-page: #EEF6FF;
+  --shadow-lift: 0 10px 40px rgb(20 70 120 / 0.12);
 }
+@theme inline {
+  --font-sans: var(--font-sora), ui-sans-serif, system-ui, sans-serif;
+}
+
+:root {
+  /* shadcn semantic tokens (keep the rest of what `shadcn init` generated) */
+  --background: #EEF6FF;
+  --foreground: #0E2A3F;
+  --primary: #0E2A3F;
+  --primary-foreground: #FFFFFF;
+  --ring: #2E9BFF;
+
+  /* liquid glass rims: navy edge + white top highlight */
+  --lg-rim-glass:
+    0 0 6px rgb(14 42 63 / 0.03), 0 2px 6px rgb(14 42 63 / 0.08),
+    inset 3px 3px 0.5px -3px rgb(14 42 63 / 0.75), inset -3px -3px 0.5px -3px rgb(14 42 63 / 0.70),
+    inset 1px 1px 1px -0.5px rgb(14 42 63 / 0.45), inset -1px -1px 1px -0.5px rgb(14 42 63 / 0.45),
+    inset 0 0 6px 6px rgb(14 42 63 / 0.06), inset 0 0 2px 2px rgb(14 42 63 / 0.04),
+    inset 0 1px 0 rgb(255 255 255 / 0.75), 0 0 12px rgb(255 255 255 / 0.35);
+  --lg-rim-ink:
+    0 4px 14px rgb(14 42 63 / 0.22),
+    inset 3px 3px 0.5px -3.5px rgb(255 255 255 / 0.25), inset -3px -3px 0.5px -3.5px rgb(255 255 255 / 0.85),
+    inset 1px 1px 1px -0.5px rgb(255 255 255 / 0.55), inset -1px -1px 1px -0.5px rgb(255 255 255 / 0.45),
+    inset 0 0 6px 6px rgb(255 255 255 / 0.06), inset 0 0 2px 2px rgb(255 255 255 / 0.05);
+}
+
+/* ---------- liquid glass ---------- */
+@layer components {
+  /* 1. backdrop: frosted blur for everyone… */
+  .lg-backdrop {
+    -webkit-backdrop-filter: blur(14px) saturate(1.5);
+    backdrop-filter: blur(14px) saturate(1.5);
+  }
+  .lg-backdrop--soft {
+    -webkit-backdrop-filter: blur(20px) saturate(1.4);
+    backdrop-filter: blur(20px) saturate(1.4);
+  }
+  /* …real refraction where it renders (flag set by the script in layout.tsx) */
+  html[data-liquid="svg"] .lg-backdrop--strong {
+    -webkit-backdrop-filter: url(#twain-glass);
+    backdrop-filter: url(#twain-glass);
+  }
+  html[data-liquid="svg"] .lg-backdrop--soft {
+    -webkit-backdrop-filter: url(#twain-glass-soft);
+    backdrop-filter: url(#twain-glass-soft);
+  }
+
+  /* 2. tint */
+  .lg-tint { transition: background-color 0.3s ease, filter 0.3s ease; }
+  .lg-tint--clear { background-color: rgb(255 255 255 / 0.30); }
+  .lg-tint--frost { background-color: rgb(255 255 255 / 0.50); }
+  .lg-tint--ink { background-image: linear-gradient(180deg, rgb(27 66 94 / 0.80), rgb(14 42 63 / 0.88)); }
+  [data-slot="liquid-surface"][data-dense="true"] > .lg-tint--frost { background-color: rgb(255 255 255 / 0.78); }
+
+  /* 3. rim */
+  .lg-rim { box-shadow: var(--lg-rim-glass); }
+  .lg-rim--ink { box-shadow: var(--lg-rim-ink); }
+
+  /* hover: lighter glass, brighter ink */
+  @media (hover: hover) {
+    [data-slot="liquid-button"]:hover > .lg-tint--clear { background-color: rgb(255 255 255 / 0.44); }
+    [data-slot="liquid-button"]:hover > .lg-tint--ink { filter: brightness(1.18); }
+  }
+
+  /* no backdrop-filter at all (old browsers): nearly opaque glass */
+  @supports not ((backdrop-filter: blur(1px)) or (-webkit-backdrop-filter: blur(1px))) {
+    .lg-tint--clear, .lg-tint--frost { background-color: rgb(255 255 255 / 0.86); }
+  }
+  /* user asked for less transparency */
+  @media (prefers-reduced-transparency: reduce) {
+    .lg-backdrop { -webkit-backdrop-filter: none !important; backdrop-filter: none !important; }
+    .lg-tint--clear, .lg-tint--frost { background-color: rgb(255 255 255 / 0.92); }
+  }
+  /* Windows high contrast: drop decoration, keep a border */
+  @media (forced-colors: active) {
+    .lg-backdrop, .lg-tint, .lg-rim, .lg-rim--ink { display: none; }
+    [data-slot="liquid-button"], [data-slot="liquid-surface"] { border: 1px solid CanvasText; }
+  }
+}
+
+/* ---------- hero entrance ---------- */
+@keyframes hero-in { from { opacity: 0; translate: 0 8px; } }
+.hero-in { animation: hero-in 0.5s ease-out backwards; animation-delay: calc(var(--i, 0) * 200ms); }
+@media (prefers-reduced-motion: reduce) { .hero-in { animation: none; } }

@@ -1,4 +1,4 @@
-import { shortAddress, type Hex } from "@lancio/shared";
+import { shortAddress, type Hex } from "@twain/shared";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";
@@ -27,10 +27,10 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   if (!isAddress(address)) return {};
   const t = await loadToken(address);
   if (!t) return { title: `Token ${shortAddress(address)}` };
-  // Root layout template appends " · Lancio".
+  // Root layout template appends " · twain".
   return {
     title: `${t.name} ($${t.symbol})`,
-    description: t.meta.description?.trim().slice(0, 200) || `${t.name} ($${t.symbol}) on Lancio, a token launchpad on Robinhood Chain.`,
+    description: t.meta.description?.trim().slice(0, 200) || `${t.name} ($${t.symbol}) on twain, a token launchpad on Robinhood Chain.`,
   };
 }
 

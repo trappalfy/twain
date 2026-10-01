@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY, PARAMS, formatAsset, formatCount, formatPct, formatUsd, type ProtocolStats } from "@lancio/shared";
+import { COPY, PARAMS, formatAsset, formatCount, formatPct, formatUsd, type ProtocolStats } from "@twain/shared";
 import { Plus } from "lucide-react";
 import { useState, type ReactNode } from "react";
 import { AssetIcon } from "@/components/common";
@@ -54,7 +54,7 @@ function Overview() {
   );
 
   return (
-    <Card as="section" texture aria-labelledby="analytics-title">
+    <Card as="section" aria-labelledby="analytics-title">
       <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
         <div className="min-w-0">
           <h1 id="analytics-title" className="font-heading text-28 text-text md:text-40">
@@ -216,7 +216,7 @@ function Charts() {
 /** Nothing launched yet: one card instead of rows of zeros. */
 function NoLaunches() {
   return (
-    <Card as="section" texture aria-labelledby="analytics-title">
+    <Card as="section" aria-labelledby="analytics-title">
       <h1 id="analytics-title" className="font-heading text-28 text-text md:text-40">
         {COPY.analytics.title}
       </h1>

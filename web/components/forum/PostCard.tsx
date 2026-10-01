@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCount, shortAddress } from "@lancio/shared";
+import { formatCount, shortAddress } from "@twain/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { ChevronDown, ChevronUp, MessageSquare } from "lucide-react";
 import Link from "next/link";

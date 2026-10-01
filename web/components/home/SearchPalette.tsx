@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY, shortAddress, type TokenSummary } from "@lancio/shared";
+import { COPY, shortAddress, type TokenSummary } from "@twain/shared";
 import * as D from "@radix-ui/react-dialog";
 import { Command } from "cmdk";
 import { ArrowRight, Search } from "lucide-react";

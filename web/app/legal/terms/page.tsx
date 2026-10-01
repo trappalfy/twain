@@ -4,18 +4,18 @@ import { LEGAL_DRAFT_NOTE, LegalPage, type LegalSection } from "@/components/doc
 
 export const metadata: Metadata = {
   title: "Terms of Use",
-  description: `Terms of Use for Lancio. ${LEGAL_DRAFT_NOTE}`,
+  description: `Terms of Use for twain. ${LEGAL_DRAFT_NOTE}`,
   robots: { index: false }, // until counsel signs off
 };
 
 const SECTIONS: LegalSection[] = [
   { id: "operator", title: "Who we are", body: "This section will name the entity that operates the site and how to reach it." },
   { id: "acceptance", title: "Accepting these terms", body: "This section will explain when these terms apply and how changes to them are published." },
-  { id: "eligibility", title: "Who can use Lancio", body: "This section will set out who may use the site, including age and the jurisdictions where it is not offered." },
+  { id: "eligibility", title: "Who can use twain", body: "This section will set out who may use the site, including age and the jurisdictions where it is not offered." },
   {
     id: "service",
-    title: "What Lancio is",
-    body: "This section will describe the site as an interface to smart contracts on Robinhood Chain that you use from your own wallet, and what Lancio does not provide, such as custody, brokerage or advice.",
+    title: "What twain is",
+    body: "This section will describe the site as an interface to smart contracts on Robinhood Chain that you use from your own wallet, and what twain does not provide, such as custody, brokerage or advice.",
   },
   {
     id: "wallet",
@@ -25,7 +25,7 @@ const SECTIONS: LegalSection[] = [
   {
     id: "user-tokens",
     title: "Tokens launched by users",
-    body: "This section will explain that tokens are created by users, not by Lancio, and that Lancio does not review or endorse them.",
+    body: "This section will explain that tokens are created by users, not by twain, and that twain does not review or endorse them.",
   },
   { id: "fees", title: "Fees", body: "This section will restate the protocol fees set in the contracts and described in the docs." },
   {
@@ -44,7 +44,7 @@ export default function TermsPage() {
   return (
     <LegalPage
       title="Terms of Use"
-      intro="The Terms of Use will set out the rules for using the Lancio website. They are being prepared and will be published here after legal review."
+      intro="The Terms of Use will set out the rules for using the twain website. They are being prepared and will be published here after legal review."
       sections={SECTIONS}
     />
   );

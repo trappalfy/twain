@@ -1,6 +1,6 @@
 "use client";
 
-import { explorerAddress, formatPct, formatTokens, type Holder, type TokenDetail } from "@lancio/shared";
+import { explorerAddress, formatPct, formatTokens, type Holder, type TokenDetail } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import { AddressLink } from "@/components/common";
 import { useHolders } from "@/lib/api";

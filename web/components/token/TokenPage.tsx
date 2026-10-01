@@ -1,6 +1,6 @@
 "use client";
 
-import type { Hex, TokenDetail } from "@lancio/shared";
+import type { Hex, TokenDetail } from "@twain/shared";
 import { ApiError, useToken } from "@/lib/api";
 import { OnchainFallback } from "./OnchainFallback";
 import { TokenPageSkeleton } from "./TokenPageSkeleton";

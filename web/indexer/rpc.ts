@@ -1,12 +1,12 @@
 /**
- * Chain access for the built-in indexer. Only Lancio's own logs are requested (launchpad, locker, Lancio tokens,
- * swaps in graduated Lancio pools), so a free RPC is enough.
+ * Chain access for the built-in indexer. Only twain's own logs are requested (launchpad, locker, twain coins
+ * and swaps in their pools), so a free RPC is enough.
  *
  * Endpoints: the public Robinhood Chain RPC first, then INDEXER_RPC_URL (optional, e.g. an Alchemy key without a
  * domain allowlist) as a fallback. Locally (NEXT_PUBLIC_RPC_URL on localhost) only the anvil fork is used.
  * NEXT_PUBLIC_RPC_URL is otherwise ignored here: it is meant for browsers and may be origin-restricted.
  */
-import { robinhood } from "@lancio/shared";
+import { robinhood } from "@twain/shared";
 import { createPublicClient, fallback, http, numberToHex, type Hex, type RpcLog } from "viem";
 import { config } from "@/lib/config";
 

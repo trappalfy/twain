@@ -1,9 +1,9 @@
 {
-  "name": "lancio",
+  "name": "twain",
   "private": true,
   "packageManager": "pnpm@12.5.1",
   "scripts": {
-    "dev": "pnpm --filter @lancio/web dev",
+    "dev": "pnpm --filter @twain/web dev",
     "build": "pnpm -r build",
     "typecheck": "pnpm -r typecheck",
     "test": "pnpm -r test"

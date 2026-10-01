@@ -1,6 +1,6 @@
 import { OG_CONTENT_TYPE, OG_SIZE, tokenOgImage } from "@/components/docs/og";
 
-export const alt = "Token on Lancio";
+export const alt = "Token on twain";
 export const size = OG_SIZE;
 export const contentType = OG_CONTENT_TYPE;
 /** Market cap and progress change; re-render at most once a minute. */

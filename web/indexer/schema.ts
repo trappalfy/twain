@@ -3,7 +3,7 @@ import { bigint, boolean, customType, integer, pgSchema, primaryKey, text } from
 /**
  * Built-in indexer tables, in their own Postgres schema next to the forum tables (same database).
  * Amounts are in the smallest unit of their currency (numeric(78)): coin amounts with 18 decimals, asset amounts with
- * the asset's decimals. Prices are `priceX18` (asset smallest units per whole coin × 1e18, see @lancio/shared pool.ts).
+ * the asset's decimals. Prices are `priceX18` (asset smallest units per whole coin × 1e18, see @twain/shared pool.ts).
  * Timestamps unix seconds, addresses lowercase. Rolling windows (24h / 7d volume, change24h) are computed at query
  * time over `trade`; USD values are computed at query time from each asset's current price.
  *

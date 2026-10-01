@@ -1,6 +1,6 @@
 "use client";
 
-import { explorerToken, formatTiny, type TokenDetail } from "@lancio/shared";
+import { explorerToken, formatTiny, type TokenDetail } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import { AssetIcon } from "@/components/common";
 import { Card } from "@/components/ui";

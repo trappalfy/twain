@@ -1,7 +1,5 @@
-import { PARAMS } from "@lancio/shared";
+import { PARAMS } from "@twain/shared";
 import type { MDXContent } from "mdx/types";
-
-export type DocImage = { src: string; alt: string };
 
 export type DocEntry = {
   /** "" is the docs index (/docs). */
@@ -9,8 +7,6 @@ export type DocEntry = {
   title: string;
   /** One line under the title; also the page's meta description. */
   summary: string;
-  /** Picture shown under the title. */
-  image?: DocImage;
   load: () => Promise<{ default: MDXContent }>;
 };
 
@@ -20,7 +16,6 @@ export const DOCS: DocEntry[] = [
     slug: "",
     title: "How it works",
     summary: "Launch a coin paired with any listed asset. The whole supply goes into its own Uniswap pool, locked for good, in one transaction.",
-    image: { src: "/brand/painting-arsenale-launch-full.png", alt: "A galley sliding down the slipway of the Venetian Arsenale into the lagoon" },
     load: () => import("@/content/docs/how-it-works.mdx"),
   },
   {
@@ -39,14 +34,12 @@ export const DOCS: DocEntry[] = [
     slug: "liquidity-lock",
     title: "Liquidity lock",
     summary: "The pool position sits in a contract that can do one thing: collect trading fees. It has no withdraw function and cannot be upgraded.",
-    image: { src: "/brand/painting-key.png", alt: "A hand dropping a key into the lagoon above a locked chest" },
     load: () => import("@/content/docs/liquidity-lock.mdx"),
   },
   {
     slug: "fees",
     title: "Fees",
     summary: `Every trade pays the pool ${PARAMS.poolFeePct}: ${PARAMS.creatorFeePct} to the creator and ${PARAMS.protocolFeePct} to the protocol, for as long as the coin trades.`,
-    image: { src: "/brand/painting-colleganza.png", alt: "Two merchants signing a contract by candlelight" },
     load: () => import("@/content/docs/fees.mdx"),
   },
   {

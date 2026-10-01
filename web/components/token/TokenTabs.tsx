@@ -1,6 +1,6 @@
 "use client";
 
-import type { TokenDetail } from "@lancio/shared";
+import type { TokenDetail } from "@twain/shared";
 import { useState } from "react";
 import { TokenForumTab } from "@/components/forum/TokenForumTab";
 import { Card, PillTabs } from "@/components/ui";

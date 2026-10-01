@@ -1,5 +1,5 @@
 /** Server only: SIWE session in an encrypted iron-session cookie. */
-import type { Hex } from "@lancio/shared";
+import type { Hex } from "@twain/shared";
 import { getIronSession, type SessionOptions } from "iron-session";
 import { cookies } from "next/headers";
 
@@ -10,7 +10,7 @@ export type SessionData = {
   address?: Hex;
 };
 
-const DEV_SECRET = "lancio-dev-only-session-secret-do-not-use-in-production";
+const DEV_SECRET = "twain-dev-only-session-secret-do-not-use-in-production";
 let warned = false;
 
 function password(): string {
@@ -28,7 +28,7 @@ const WEEK = 7 * 24 * 3600;
 
 function options(): SessionOptions {
   return {
-    cookieName: "lancio_session",
+    cookieName: "twain_session",
     password: password(),
     ttl: WEEK,
     cookieOptions: { httpOnly: true, secure: process.env.NODE_ENV === "production", sameSite: "lax", path: "/", maxAge: WEEK },

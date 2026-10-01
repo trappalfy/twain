@@ -11,18 +11,18 @@ Node ≥ 22, pnpm 12, Foundry (`curl -L https://foundry.paradigm.xyz | bash && f
 ```bash
 pnpm install
 scripts/dev-chain.sh                 # terminal 1: anvil fork of Robinhood mainnet + contracts; lists ETH and TSLA, funds test wallets with TSLA
-pnpm --filter @lancio/web dev        # terminal 2: site on :3000
+pnpm --filter @twain/web dev        # terminal 2: site on :3000
 ```
 Demo data: `cd contracts && LAUNCHPAD=<from deployments/local.json> CREATOR_KEY=<anvil key> TRADER_KEY=<anvil key> STOCK=0x322F0929c4625eD5bAd873c95208D54E1c003b2d forge script script/Seed.s.sol --rpc-url http://127.0.0.1:8545 --broadcast` launches an ETH pair and a TSLA pair and trades them.
 The site indexes the fork itself (built-in indexer, status at `/api/indexer`).
-Wallet: add network RPC `http://127.0.0.1:8545`, chainId 4663, and import a test key printed in `/tmp/lancio-anvil.log`.
+Wallet: add network RPC `http://127.0.0.1:8545`, chainId 4663, and import a test key printed in `/tmp/twain-anvil.log`.
 The public Robinhood RPC keeps only ~10–20 minutes of historical state, so a fork stops working after that; restart it, or set `RPC_URL_4663` to an archive RPC for longer sessions.
 
 ## Tests
 ```bash
 cd contracts && forge test                               # unit and fuzz tests
 forge test --match-contract ForkTest -vv                 # full cycle on a mainnet fork: real Uniswap v4, real TSLA, Universal Router + Permit2
-pnpm --filter @lancio/shared test                        # pool math vectors (must match the contracts bit for bit)
+pnpm --filter @twain/shared test                        # pool math vectors (must match the contracts bit for bit)
 ```
 
 ## Mainnet deploy (owner only)

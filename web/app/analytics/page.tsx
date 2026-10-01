@@ -1,5 +1,5 @@
 import type { Metadata } from "next";
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import { AnalyticsView } from "@/components/analytics/AnalyticsView";
 
 export const metadata: Metadata = {

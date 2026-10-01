@@ -1,5 +1,5 @@
 /** Helpers shared by the sync (apply.ts) and the API (api.ts). */
-import { UNISWAP_V4, type Interval } from "@lancio/shared";
+import { UNISWAP_V4, type Interval } from "@twain/shared";
 import { config } from "@/lib/config";
 
 export type Hex = `0x${string}`;

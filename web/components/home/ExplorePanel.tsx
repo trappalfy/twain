@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { AssetIcon } from "@/components/common";

@@ -1,4 +1,4 @@
-import { explorerAddress, formatCount, shortAddress, type AccountResponse } from "@lancio/shared";
+import { explorerAddress, formatCount, shortAddress, type AccountResponse } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import { CopyButton, Identicon } from "@/components/common";
 import { Badge, Card, Skeleton } from "@/components/ui";
@@ -20,7 +20,7 @@ export function ProfileHeader({
     { label: "Trades", value: account?.tradesCount },
   ];
   return (
-    <Card texture className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
+    <Card className="flex flex-col gap-6 md:flex-row md:items-center md:justify-between">
       <div className="flex min-w-0 items-center gap-4 md:gap-5">
         <Identicon address={address} size={72} className="ring-2 ring-border" />
         <div className="min-w-0">

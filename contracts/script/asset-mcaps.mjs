@@ -18,10 +18,24 @@ const MAX_START_MCAP = 10n ** 42n; // Launchpad.MAX_START_MCAP
 const list = JSON.parse(readFileSync(new URL(`../assets/${CHAIN_ID}.json`, import.meta.url), "utf8")).assets;
 const lc = (a) => a.toLowerCase();
 
+/** fetch with up to 3 attempts: public price APIs drop connections now and then. */
+async function retry(fn) {
+  for (let i = 1; ; i++) {
+    try {
+      return await fn();
+    } catch (err) {
+      if (i === 3) throw err;
+      await new Promise((r) => setTimeout(r, 500 * i));
+    }
+  }
+}
+
 async function getJson(url) {
-  const res = await fetch(url, { headers: { accept: "application/json", "user-agent": "twain-asset-mcaps" } });
-  if (!res.ok) throw new Error(`${res.status} ${url}`);
-  return res.json();
+  return retry(async () => {
+    const res = await fetch(url, { headers: { accept: "application/json", "user-agent": "twain-asset-mcaps" } });
+    if (!res.ok) throw new Error(`${res.status} ${url}`);
+    return res.json();
+  });
 }
 
 async function ethUsd() {
@@ -37,12 +51,14 @@ async function ethUsd() {
 }
 
 async function decimals(address) {
-  const res = await fetch(RPC, {
-    method: "POST",
-    headers: { "content-type": "application/json" },
-    body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: address, data: "0x313ce567" }, "latest"] }),
+  const { result } = await retry(async () => {
+    const res = await fetch(RPC, {
+      method: "POST",
+      headers: { "content-type": "application/json" },
+      body: JSON.stringify({ jsonrpc: "2.0", id: 1, method: "eth_call", params: [{ to: address, data: "0x313ce567" }, "latest"] }),
+    });
+    return res.json();
   });
-  const { result } = await res.json();
   if (!result || result === "0x") throw new Error(`decimals() failed for ${address}`);
   return Number(BigInt(result));
 }

@@ -1,4 +1,4 @@
-import type { Hex, TokenDetail } from "@lancio/shared";
+import type { Hex, TokenDetail } from "@twain/shared";
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
 import { cache } from "react";

@@ -9,7 +9,7 @@ export function BannerDismiss({ id }: { id: string }) {
       aria-label="Dismiss announcement"
       onClick={() => {
         try {
-          localStorage.setItem(`lancio-banner-dismissed:${id}`, "1");
+          localStorage.setItem(`twain-banner-dismissed:${id}`, "1");
         } catch {}
         document.documentElement.dataset.bannerDismissed = "";
       }}

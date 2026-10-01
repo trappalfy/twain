@@ -11,7 +11,7 @@ import type {
   ProtocolStats,
   TokensResponse,
   TradesResponse,
-} from "@lancio/shared";
+} from "@twain/shared";
 import { ApiError } from "./api";
 
 type Params = Record<string, string | number | undefined | null>;

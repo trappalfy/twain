@@ -1,10 +1,10 @@
 "use client";
 
-import { COPY, explorerAddress, type TokenDetail } from "@lancio/shared";
+import { COPY, explorerAddress, type TokenDetail } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { useState } from "react";
-import { LancioMark } from "@/components/brand/LancioMark";
+import { TwainMark } from "@/components/icons";
 import { Card } from "@/components/ui/Card";
 import { PillTabs } from "@/components/ui/PillTabs";
 import { config } from "@/lib/config";
@@ -45,9 +45,9 @@ export function TradePanel({ token, initialSide = "buy" }: { token: TokenDetail;
 
 function LockedPlate({ pair }: { pair: string }) {
   return (
-    <div className="graduated-panel canvas-texture mt-5 rounded-card px-4 py-3.5">
+    <div className="mt-5 rounded-card border border-border bg-surface-2 px-4 py-3.5">
       <p className="flex items-center gap-2 text-sm font-medium text-accent-text">
-        <LancioMark className="h-3 w-auto shrink-0 text-accent" />
+        <TwainMark className="size-3 shrink-0 text-brand" />
         {COPY.token.lockedPlate}
       </p>
       <p className="mt-1.5 flex flex-wrap items-center gap-x-3 gap-y-1 text-13 text-muted">

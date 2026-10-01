@@ -1,4 +1,4 @@
-import type { Hex } from "@lancio/shared";
+import type { Hex } from "@twain/shared";
 import { parseSiweMessage, verifySiweMessage } from "viem/siwe";
 import { z } from "zod";
 import { chainClient } from "@/db/enrich";

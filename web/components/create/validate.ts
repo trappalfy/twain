@@ -1,5 +1,5 @@
 /** Pure helpers shared by the create form and the upload API (no React, no server imports). */
-import { TOKEN_LIMITS } from "@lancio/shared";
+import { TOKEN_LIMITS } from "@twain/shared";
 
 /** Metadata JSON stored off-chain; its URI goes into launchpad.create(). Read by the indexer. */
 export type TokenMetadata = {

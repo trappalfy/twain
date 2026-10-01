@@ -22,7 +22,7 @@ export function OwnProfile() {
   const waiting = status === "connecting" || status === "reconnecting" || !settled;
   return (
     <div className="container-page py-8 md:py-12">
-      <Card texture className="flex flex-col items-center px-5 py-14 text-center md:py-20">
+      <Card className="flex flex-col items-center px-5 py-14 text-center md:py-20">
         {waiting ? (
           <>
             <Skeleton className="size-18 rounded-full" />

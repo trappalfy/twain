@@ -25,7 +25,7 @@ export function CropDialog({
       open
       onOpenChange={(open) => !open && onCancel()}
       title="Crop image"
-      description="The token image is square everywhere on Lancio."
+      description="The token image is square everywhere on twain."
       footer={
         <>
           <Button variant="outline" onClick={onCancel}>

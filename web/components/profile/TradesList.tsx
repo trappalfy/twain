@@ -1,6 +1,6 @@
 "use client";
 
-import { formatAsset, formatTokens, shortAddress, type Trade } from "@lancio/shared";
+import { formatAsset, formatTokens, shortAddress, type Trade } from "@twain/shared";
 import Link from "next/link";
 import { useState } from "react";
 import { AddressLink, TimeAgo } from "@/components/common";

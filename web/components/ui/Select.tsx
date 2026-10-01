@@ -12,6 +12,7 @@ export function Select<T extends string>({
   options,
   placeholder,
   className,
+  defaultOpen,
   "aria-label": ariaLabel,
 }: {
   value: T | undefined;
@@ -19,10 +20,12 @@ export function Select<T extends string>({
   options: readonly { value: T; label: ReactNode }[];
   placeholder?: string;
   className?: string;
+  /** Open on mount (render it once its options exist). */
+  defaultOpen?: boolean;
   "aria-label"?: string;
 }) {
   return (
-    <S.Root value={value} onValueChange={(v) => onChange(v as T)}>
+    <S.Root value={value} defaultOpen={defaultOpen} onValueChange={(v) => onChange(v as T)}>
       <S.Trigger
         aria-label={ariaLabel}
         className={cn(

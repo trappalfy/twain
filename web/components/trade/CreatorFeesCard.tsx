@@ -1,7 +1,7 @@
 "use client";
 
-import { CREATOR_FEE_SHARE, formatAsset, formatTokens, PARAMS, type TokenDetail } from "@lancio/shared";
-import { launchpadAbi, lockerAbi } from "@lancio/shared/abi";
+import { CREATOR_FEE_SHARE, formatAsset, formatTokens, PARAMS, type TokenDetail } from "@twain/shared";
+import { launchpadAbi, lockerAbi } from "@twain/shared/abi";
 import { zeroAddress } from "viem";
 import { useAccount, useReadContract } from "wagmi";
 import { Button } from "@/components/ui/Button";

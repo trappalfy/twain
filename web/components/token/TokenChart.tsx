@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY, TOTAL_SUPPLY, WAD, formatTiny, formatUsd, priceX18ToNumber, sig, type Interval, type TokenDetail } from "@lancio/shared";
+import { COPY, TOTAL_SUPPLY, WAD, formatTiny, formatUsd, priceX18ToNumber, sig, type Interval, type TokenDetail } from "@twain/shared";
 import {
   CandlestickSeries,
   ColorType,

@@ -1,5 +1,5 @@
 /**
- * Sync-on-read: API requests call `maybeSync()` after responding (next/server `after`). A sync pulls Lancio's logs
+ * Sync-on-read: API requests call `maybeSync()` after responding (next/server `after`). A sync pulls twain's logs
  * since the last indexed block, applies them and advances the cursor in one transaction. Nothing runs while nobody
  * is on the site; the first visitor after a pause triggers a catch-up.
  *

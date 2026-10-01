@@ -9,8 +9,8 @@ import {
   formatEth,
   quoteFromStart,
   type ListedAsset,
-} from "@lancio/shared";
-import { launchpadAbi, tokenAbi } from "@lancio/shared/abi";
+} from "@twain/shared";
+import { launchpadAbi, tokenAbi } from "@twain/shared/abi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useQuery } from "@tanstack/react-query";
 import { Fuel, Globe } from "lucide-react";
@@ -78,7 +78,8 @@ function useDebounced<T>(value: T, ms: number): T {
 type Step = "idle" | "metadata" | "tx" | "done";
 type ButtonState = { label: string; disabled?: boolean; loading?: boolean; onClick?: () => void };
 
-export function CreateForm() {
+/** initialCoin / initialPair: ?coin= and ?pair= from the hero's pair card (read by the page on the server). */
+export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string; initialPair?: string } = {}) {
   const router = useRouter();
   const { address, chainId, status: accountStatus } = useAccount();
   const { openConnectModal } = useConnectModal();
@@ -87,14 +88,16 @@ export function CreateForm() {
   const tx = useTx();
   const image = useImageUpload();
 
+  // ?coin=KITE&pair=TSLA from the hero's pair card ("pair=any" opens the asset list)
+  const pairParam = initialPair?.toUpperCase() ?? null;
   const [name, setName] = useState("");
-  const [ticker, setTicker] = useState("");
+  const [ticker, setTicker] = useState(() => cleanTicker(initialCoin ?? ""));
   const [description, setDescription] = useState("");
   const [x, setX] = useState("");
   const [telegram, setTelegram] = useState("");
   const [website, setWebsite] = useState("");
   const [devBuy, setDevBuy] = useState("");
-  const [assetAddr, setAssetAddr] = useState<string>(NATIVE_ASSET);
+  const [assetAddr, setAssetAddr] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("idle");
   const [metaError, setMetaError] = useState<string | null>(null);
   const metaCache = useRef<{ key: string; uri: string } | null>(null);
@@ -112,7 +115,8 @@ export function CreateForm() {
   // ---- paired asset (owner-listed, enabled ones only)
   const assetsQ = useAssets();
   const enabled = (assetsQ.data ?? []).filter((a) => a.enabled);
-  const asset: ListedAsset | undefined = enabled.find((a) => a.address === assetAddr) ?? enabled[0];
+  const preferred = pairParam && pairParam !== "ANY" ? enabled.find((a) => a.symbol.toUpperCase() === pairParam) : undefined;
+  const asset: ListedAsset | undefined = enabled.find((a) => a.address === assetAddr) ?? preferred ?? enabled[0];
   const native = !asset || asset.address === NATIVE_ASSET;
   const decimals = asset?.decimals ?? 18;
 
@@ -155,7 +159,7 @@ export function CreateForm() {
   // Gas estimate: the ERC-20 first buy is left out until the launchpad may pull it (the call would revert).
   const gasAmount = useDebounced(needsApproval ? 0n : devAmount, 400);
   const gasQ = useQuery({
-    queryKey: ["lancio", "create-gas", address, asset?.address, gasAmount.toString()],
+    queryKey: ["twain", "create-gas", address, asset?.address, gasAmount.toString()],
     enabled: !!publicClient && onChain && LAUNCHPAD_SET && !paused && !!asset && (native || balance === undefined || gasAmount <= balance),
     retry: false,
     staleTime: 30_000,
@@ -407,6 +411,8 @@ export function CreateForm() {
 
           <Field label="Paired asset" hint={COPY.create.pairedHelper}>
             <Select
+              key={enabled.length > 0 ? "ready" : "loading"}
+              defaultOpen={pairParam === "ANY" && enabled.length > 0}
               aria-label="Paired asset"
               value={asset?.address}
               placeholder={assetsQ.isPending ? "Loading…" : "No asset open for launches"}
@@ -493,7 +499,7 @@ export function CreateForm() {
       </div>
 
       {/* ---- live preview (under the form on mobile) */}
-      <aside className="canvas-texture border-t border-border bg-surface-2/40 p-5 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
+      <aside className="border-t border-border bg-surface-2/40 p-5 sm:p-8 lg:border-l lg:border-t-0 lg:p-10">
         <div className="lg:sticky lg:top-[calc(var(--header-h)+24px)]">
           <p className="mb-4 text-xs font-medium uppercase tracking-display text-muted">Preview</p>
           <TokenPreview data={preview} />

@@ -1,6 +1,6 @@
 "use client";
 
-import type { Hex } from "@lancio/shared";
+import type { Hex } from "@twain/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { Plus } from "lucide-react";
 import { useRouter } from "next/navigation";

@@ -3,14 +3,13 @@ import type { ButtonHTMLAttributes, ReactNode } from "react";
 import { cn } from "@/lib/utils";
 import { Spinner } from "./Spinner";
 
-export type ButtonVariant = "accent" | "outline" | "ghost" | "cream-outline" | "buy" | "sell";
+export type ButtonVariant = "accent" | "outline" | "ghost" | "buy" | "sell";
 export type ButtonSize = "sm" | "md" | "lg" | "icon" | "icon-sm";
 
 const VARIANTS: Record<ButtonVariant, string> = {
   accent: "bg-accent text-on-accent hover:brightness-110 active:brightness-95",
   outline: "border border-border bg-transparent text-text hover:bg-surface-2",
   ghost: "bg-transparent text-muted hover:text-text hover:bg-surface-2",
-  "cream-outline": "border border-cream/60 bg-transparent text-cream hover:bg-cream/10",
   buy: "bg-buy-bg text-on-buy hover:brightness-110 active:brightness-95",
   sell: "bg-sell-bg text-on-sell hover:brightness-110 active:brightness-95",
 };

@@ -1,4 +1,4 @@
-import { explorerAddress, explorerToken, explorerTx, shortAddress } from "@lancio/shared";
+import { explorerAddress, explorerToken, explorerTx, shortAddress } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import Link from "next/link";
 import { cn } from "@/lib/utils";

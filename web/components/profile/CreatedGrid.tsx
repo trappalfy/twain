@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY, type TokenSummary } from "@lancio/shared";
+import { COPY, type TokenSummary } from "@twain/shared";
 import Link from "next/link";
 import { AssetIcon, CoinMcap, TimeAgo, TokenImage } from "@/components/common";
 import { Button, EmptyState } from "@/components/ui";
@@ -35,7 +35,6 @@ export function CreatedGrid({ tokens, isOwn }: { tokens: TokenSummary[]; isOwn: 
   if (tokens.length === 0) {
     return isOwn ? (
       <EmptyState
-        image="/brand/painting-colleganza.png"
         title={COPY.profile.empty}
         action={<Button href="/launchpad/create">{COPY.hero.ctaLaunch}</Button>}
       />

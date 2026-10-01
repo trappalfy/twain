@@ -1,15 +1,16 @@
 /**
- * Open Graph images (next/og, 1200×630). Server-only: reads fonts and paintings from disk, resizes with sharp.
- * Used by app/opengraph-image.tsx, app/docs/opengraph-image.tsx, app/launchpad/[address]/opengraph-image.tsx.
+ * Open Graph images (next/og, 1200×630). Server-only: reads fonts and the header poster from disk, resizes with sharp.
+ * Used by app/docs/opengraph-image.tsx and app/launchpad/[address]/opengraph-image.tsx; the home page uses the
+ * header poster itself (app/layout.tsx metadata).
  */
 import { readFile } from "node:fs/promises";
 import { join } from "node:path";
-import { COPY, TOKEN_LIMITS, formatAsset, formatPct, formatPriceAsset, formatTiny, formatUsd, shortAddress, type TokenResponse } from "@lancio/shared";
+import { COPY, TOKEN_LIMITS, formatAsset, formatPct, formatPriceAsset, formatTiny, formatUsd, shortAddress, type TokenResponse } from "@twain/shared";
 import { ImageResponse } from "next/og";
 import type { ReactElement } from "react";
 import sharp from "sharp";
 import { isAddress } from "viem";
-import { LANCIO_MARK_PATH } from "@/components/brand/LancioMark";
+import { TWAIN_MARK_PATH } from "@/components/icons";
 import { api } from "@/lib/api";
 import { config } from "@/lib/config";
 import { identiconSvg } from "@/lib/identicon";
@@ -17,34 +18,34 @@ import { identiconSvg } from "@/lib/identicon";
 export const OG_SIZE = { width: 1200, height: 630 };
 export const OG_CONTENT_TYPE = "image/png";
 
-/** Hex mirrors of the dark-theme tokens in app/globals.css (ImageResponse cannot read CSS variables). */
+/** Hex mirrors of the twain tokens in app/globals.css (ImageResponse cannot read CSS variables). */
 const C = {
-  bg: "#14100c",
-  surface: "#1e1712",
-  surface2: "#2a2019",
-  border: "#3a2e22",
-  text: "#ede2cd",
-  muted: "#a89479",
-  accent: "#c9a058",
-  cream: "#f1eadf",
-  ink: "#1a120b",
+  ink: "#0E2A3F",
+  ink2: "#3D5872",
+  brand: "#2E9BFF",
+  border: "#D5E3F1",
+  surface2: "#F1F6FC",
+  buy: "#0A7A4F",
+  sell: "#C73439",
 };
 
 type OgFonts = NonNullable<NonNullable<ConstructorParameters<typeof ImageResponse>[1]>["fonts"]>;
 
 // Literal paths so output file tracing picks the files up.
-const FONT_CINZEL = join(process.cwd(), "assets/fonts/Cinzel-SemiBold.ttf");
+const FONT_SORA = join(process.cwd(), "assets/fonts/Sora-Regular.woff");
+const FONT_SORA_SEMI = join(process.cwd(), "assets/fonts/Sora-SemiBold.woff");
 const FONT_INTER = join(process.cwd(), "assets/fonts/Inter-Regular.ttf");
 const FONT_INTER_SEMI = join(process.cwd(), "assets/fonts/Inter-SemiBold.ttf");
-const ARSENALE = join(process.cwd(), "public/brand/painting-arsenale-launch-full.png");
-const SHIPWRIGHT = join(process.cwd(), "public/brand/painting-shipwright.png");
+const POSTER = join(process.cwd(), "public/media/twain-header-poster.jpg");
+const WORDMARK = join(process.cwd(), "public/brand/twain-wordmark.svg");
 
 let fontsP: Promise<OgFonts> | undefined;
 
 function loadFonts(): Promise<OgFonts> {
-  fontsP ??= Promise.all([readFile(FONT_CINZEL), readFile(FONT_INTER), readFile(FONT_INTER_SEMI)]).then(
-    ([cinzel, inter, interSemi]): OgFonts => [
-      { name: "Cinzel", data: cinzel, weight: 600, style: "normal" },
+  fontsP ??= Promise.all([readFile(FONT_SORA), readFile(FONT_SORA_SEMI), readFile(FONT_INTER), readFile(FONT_INTER_SEMI)]).then(
+    ([sora, soraSemi, inter, interSemi]): OgFonts => [
+      { name: "Sora", data: sora, weight: 400, style: "normal" },
+      { name: "Sora", data: soraSemi, weight: 600, style: "normal" },
       { name: "Inter", data: inter, weight: 400, style: "normal" },
       { name: "Inter", data: interSemi, weight: 600, style: "normal" },
     ],
@@ -54,26 +55,25 @@ function loadFonts(): Promise<OgFonts> {
 
 const dataUri = (buf: Buffer, mime: string) => `data:${mime};base64,${buf.toString("base64")}`;
 
-/** A brand painting cropped to exactly 1200×630 (JPEG data URI, cached per process). */
-const paintings = new Map<string, Promise<string>>();
-function painting(path: string, position: "centre" | "right" | "left" | "top") {
-  const key = `${path}:${position}`;
-  let p = paintings.get(key);
-  if (!p) {
-    p = sharp(path)
-      .resize(OG_SIZE.width, OG_SIZE.height, { fit: "cover", position })
-      .jpeg({ quality: 84, mozjpeg: true })
-      .toBuffer()
-      .then((b) => dataUri(b, "image/jpeg"));
-    paintings.set(key, p);
-  }
-  return p;
+/** The header poster cropped to exactly 1200×630 (JPEG data URI, cached per process). */
+let posterP: Promise<string> | undefined;
+function poster() {
+  posterP ??= sharp(POSTER)
+    .resize(OG_SIZE.width, OG_SIZE.height, { fit: "cover" })
+    .jpeg({ quality: 86, mozjpeg: true })
+    .toBuffer()
+    .then((b) => dataUri(b, "image/jpeg"));
+  return posterP;
 }
 
-function Mark({ width, color }: { width: number; color: string }) {
+/** The wordmark SVG as a data URI (its own fill is ink). 2811×1059 units. */
+let wordmarkP: Promise<string> | undefined;
+const wordmark = () => (wordmarkP ??= readFile(WORDMARK).then((b) => dataUri(b, "image/svg+xml")));
+
+function Mark({ size, color }: { size: number; color: string }) {
   return (
-    <svg width={width} height={width * 0.775} viewBox="0 0 100 77.5">
-      <path fillRule="evenodd" d={LANCIO_MARK_PATH} fill={color} />
+    <svg width={size} height={size} viewBox="0 0 140 140">
+      <path d={TWAIN_MARK_PATH} fill={color} />
     </svg>
   );
 }
@@ -82,87 +82,60 @@ async function render(node: ReactElement) {
   return new ImageResponse(node, { ...OG_SIZE, fonts: await loadFonts() });
 }
 
-/* ------------------------------------------------------------------ home */
-
-/** Home: the hero painting (the shipwright, figure on the right) + the slogan in the empty dark left. Also the fallback for token pages. */
-export async function homeOgImage() {
-  const bg = await painting(SHIPWRIGHT, "top");
-  return render(
-    <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: C.bg }}>
+/** Poster background shared by every image. */
+function Frame({ bg, children }: { bg: string; children: ReactElement | ReactElement[] }) {
+  return (
+    <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: "#EEF6FF" }}>
       {/* eslint-disable-next-line @next/next/no-img-element */}
       <img src={bg} width={OG_SIZE.width} height={OG_SIZE.height} alt="" style={{ position: "absolute", left: 0, top: 0 }} />
-      <div
-        style={{
-          position: "absolute",
-          left: 0,
-          top: 0,
-          width: "100%",
-          height: "100%",
-          display: "flex",
-          backgroundImage: "linear-gradient(90deg, rgba(20,16,12,0.85) 0%, rgba(20,16,12,0.6) 38%, rgba(20,16,12,0) 58%)",
-        }}
-      />
-      <div style={{ position: "absolute", left: 64, top: 56, display: "flex", alignItems: "center", gap: 18 }}>
-        <Mark width={64} color={C.cream} />
-        <span style={{ fontFamily: "Cinzel", fontSize: 34, color: C.cream, letterSpacing: 4 }}>LANCIO</span>
-      </div>
-      <div style={{ position: "absolute", left: 64, bottom: 60, width: 560, display: "flex", flexDirection: "column" }}>
-        <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 17, color: C.accent, letterSpacing: 4 }}>{COPY.hero.eyebrow}</span>
-        <span
-          style={{
-            fontFamily: "Cinzel",
-            fontSize: 68,
-            lineHeight: 1.08,
-            color: C.cream,
-            letterSpacing: 3,
-            marginTop: 18,
-            textShadow: "0 2px 18px rgba(20,16,12,0.8)",
-          }}
-        >
+      {children}
+    </div>
+  );
+}
+
+/* ------------------------------------------------------------------ fallback */
+
+/** Poster, wordmark and the slogan: the fallback for token pages without data. */
+export async function homeOgImage() {
+  const [bg, wm] = await Promise.all([poster(), wordmark()]);
+  return render(
+    <Frame bg={bg}>
+      <div style={{ position: "absolute", left: 0, top: 0, width: "100%", height: "100%", display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center" }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={wm} width={212} height={80} alt="" />
+        <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 76, lineHeight: 1.04, letterSpacing: -2.5, color: C.ink, marginTop: 40, textAlign: "center", maxWidth: 900 }}>
           {COPY.og[0]}
         </span>
       </div>
-    </div>,
+    </Frame>,
   );
 }
 
 /* ------------------------------------------------------------------ docs */
 
-/** Docs: "THE RULES CAME FIRST" over the Arsenale sky, in the style of the article cover. */
+/** Docs: wordmark + "Docs" pill + title over the poster. */
 export async function docsOgImage() {
-  const bg = await painting(ARSENALE, "right");
+  const [bg, wm] = await Promise.all([poster(), wordmark()]);
   return render(
-    <div style={{ width: "100%", height: "100%", display: "flex", position: "relative", background: C.bg }}>
-      {/* eslint-disable-next-line @next/next/no-img-element */}
-      <img src={bg} width={OG_SIZE.width} height={OG_SIZE.height} alt="" style={{ position: "absolute", left: 0, top: 0 }} />
-      <div style={{ position: "absolute", left: 56, top: 52, display: "flex" }}>
-        <Mark width={72} color={C.cream} />
-      </div>
-      <div style={{ position: "absolute", right: 72, top: 64, display: "flex", flexDirection: "column", alignItems: "flex-end" }}>
-        <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 18, color: C.ink, letterSpacing: 5, opacity: 0.8 }}>LANCIO DOCS</span>
-        <span
-          style={{
-            fontFamily: "Cinzel",
-            fontSize: 58,
-            lineHeight: 1.1,
-            color: C.ink,
-            letterSpacing: 4,
-            marginTop: 14,
-            maxWidth: 470,
-            textAlign: "right",
-          }}
-        >
-          {COPY.og[1]}
+    <Frame bg={bg}>
+      <div style={{ position: "absolute", left: 72, top: 64, display: "flex", alignItems: "center", gap: 20 }}>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={wm} width={170} height={64} alt="" />
+        <span style={{ display: "flex", fontFamily: "Sora", fontWeight: 600, fontSize: 22, color: C.ink2, padding: "8px 18px", borderRadius: 999, background: "rgba(255,255,255,0.72)", border: "1px solid rgba(255,255,255,0.9)" }}>
+          Docs
         </span>
       </div>
-    </div>,
+      <div style={{ position: "absolute", left: 72, bottom: 72, display: "flex", flexDirection: "column", maxWidth: 900 }}>
+        <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 84, lineHeight: 1.02, letterSpacing: -3, color: C.ink }}>{COPY.og[1]}</span>
+      </div>
+    </Frame>,
   );
 }
 
 /* ------------------------------------------------------------------ token */
 
-/** Latin (Cinzel) and Latin/Greek/Cyrillic (Inter) coverage; anything else is dropped so no remote font fetch happens. */
-const CINZEL_OK = /^[ -ɏ‘-‟…]*$/;
+/** Latin (Sora) and Latin/Greek/Cyrillic (Inter) coverage; anything else is dropped so no remote font fetch happens. */
+const SORA_OK = /^[ -ɏ‘-‟…]*$/;
 const clean = (s: string) =>
   s
     .replace(/[^ -ԯ -⁯₠-⃏]/g, "")
@@ -211,95 +184,52 @@ async function fetchToken(address: string): Promise<TokenResponse | null> {
   return api.token(address, AbortSignal.timeout(3000)).catch(() => null);
 }
 
-/** Coin: image, name, $TICKER, pair, market cap, price and 24h change, mark. Generic home image when data is unavailable. */
+/** Coin: image, name, $TICKER, pair, market cap, price and 24h change on a white card over the poster. */
 export async function tokenOgImage(address: string) {
   const t = await fetchToken(address);
   if (!t) return homeOgImage();
 
-  const img = await tokenImage(t.meta?.image ?? null, t.address);
+  const [bg, wm, img] = await Promise.all([poster(), wordmark(), tokenImage(t.meta?.image ?? null, t.address)]);
   const rawName = clean(t.name) || shortAddress(t.address);
   const name = clip(rawName, 28);
   const symbol = clip(clean(t.symbol).toUpperCase(), 12);
+  const pair = clip(clean(t.asset.symbol).toUpperCase(), 10);
   const mcap = t.mcapUsd != null ? formatUsd(t.mcapUsd) : formatAsset(t.mcapAsset, t.asset);
   const price = t.priceUsd != null ? `$${formatTiny(t.priceUsd)}` : formatPriceAsset(t.priceX18, t.asset);
   const change = t.change24hPct;
-  const nameSize = name.length <= 12 ? 76 : name.length <= 20 ? 58 : 46;
+  const nameSize = name.length <= 12 ? 72 : name.length <= 20 ? 56 : 44;
+  const font = SORA_OK.test(name) ? "Sora" : "Inter";
 
   return render(
-    <div
-      style={{
-        width: "100%",
-        height: "100%",
-        display: "flex",
-        padding: 40,
-        background: C.bg,
-        backgroundImage: "radial-gradient(90% 80% at 100% 0%, rgba(201,160,88,0.14) 0%, rgba(201,160,88,0) 70%)",
-      }}
-    >
-      <div
-        style={{
-          flex: 1,
-          display: "flex",
-          alignItems: "center",
-          gap: 52,
-          padding: 48,
-          borderRadius: 36,
-          border: `1px solid ${C.border}`,
-          background: C.surface,
-          position: "relative",
-        }}
-      >
+    <Frame bg={bg}>
+      <div style={{ position: "absolute", left: 40, top: 40, right: 40, bottom: 40, display: "flex", alignItems: "center", gap: 48, padding: 44, borderRadius: 36, background: "rgba(255,255,255,0.86)", border: "1px solid rgba(255,255,255,0.95)", boxShadow: "0 10px 40px rgba(20,70,120,0.16)" }}>
         {/* eslint-disable-next-line @next/next/no-img-element */}
         <img src={img} width={380} height={380} alt="" style={{ borderRadius: 28, border: `1px solid ${C.border}` }} />
 
         <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-          <span
-            style={{
-              alignSelf: "flex-start",
-              display: "flex",
-              fontFamily: "Inter",
-              fontWeight: 600,
-              fontSize: 18,
-              letterSpacing: 2,
-              padding: "8px 16px",
-              borderRadius: 999,
-              color: C.muted,
-              background: C.surface2,
-            }}
-          >
-            {`${clip(clean(t.asset.symbol).toUpperCase(), 10)} PAIR`}
-          </span>
-          <span
-            style={{
-              fontFamily: CINZEL_OK.test(name) ? "Cinzel" : "Inter",
-              fontWeight: 600,
-              fontSize: nameSize,
-              lineHeight: 1.08,
-              color: C.text,
-              marginTop: 22,
-              letterSpacing: 1,
-            }}
-          >
-            {name}
-          </span>
-          {symbol && <span style={{ fontFamily: "Inter", fontSize: 32, color: C.muted, marginTop: 10 }}>{`$${symbol}`}</span>}
+          <div style={{ display: "flex", alignItems: "center", gap: 10, alignSelf: "flex-start", fontFamily: "Sora", fontWeight: 600, fontSize: 20, padding: "8px 16px", borderRadius: 999, color: C.ink, background: C.surface2, border: `1px solid ${C.border}` }}>
+            <Mark size={16} color={C.brand} />
+            {`Paired with ${pair}`}
+          </div>
+          <span style={{ fontFamily: font, fontWeight: 600, fontSize: nameSize, lineHeight: 1.04, letterSpacing: font === "Sora" ? -1.5 : 0, color: C.ink, marginTop: 22 }}>{name}</span>
+          {symbol && <span style={{ fontFamily: "Sora", fontSize: 30, color: C.ink2, marginTop: 8 }}>{`$${symbol}`}</span>}
 
-          <div style={{ display: "flex", flexDirection: "column", marginTop: 34 }}>
-            <span style={{ fontFamily: "Inter", fontSize: 20, color: C.muted }}>Market cap</span>
-            <span style={{ fontFamily: "Inter", fontWeight: 600, fontSize: 52, color: C.text, marginTop: 2 }}>{mcap}</span>
+          <div style={{ display: "flex", flexDirection: "column", marginTop: 30 }}>
+            <span style={{ fontFamily: "Sora", fontSize: 20, color: C.ink2 }}>Market cap</span>
+            <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 50, letterSpacing: -1, color: C.ink, marginTop: 2 }}>{mcap}</span>
           </div>
 
-          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 26, fontFamily: "Inter", fontSize: 22, color: C.muted }}>
+          <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, fontFamily: "Sora", fontSize: 22, color: C.ink2 }}>
             <span>{`Price ${price}`}</span>
-            <span style={{ color: C.text, fontWeight: 600 }}>{change == null ? COPY.token.lockedPlate : `${formatPct(change, { sign: true })} 24h`}</span>
+            <span style={{ fontWeight: 600, color: change == null ? C.ink : change >= 0 ? C.buy : C.sell }}>
+              {change == null ? COPY.token.lockedPlate : `${formatPct(change, { sign: true })} 24h`}
+            </span>
           </div>
         </div>
 
-        <div style={{ position: "absolute", right: 36, top: 32, display: "flex", alignItems: "center", gap: 12 }}>
-          <Mark width={40} color={C.accent} />
-          <span style={{ fontFamily: "Cinzel", fontSize: 22, color: C.text, letterSpacing: 3 }}>LANCIO</span>
-        </div>
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={wm} width={106} height={40} alt="" style={{ position: "absolute", right: 40, top: 36 }} />
       </div>
-    </div>,
+    </Frame>,
   );
 }

@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import type { ReactNode } from "react";
 import { Card, Skeleton } from "@/components/ui";
 import { cn } from "@/lib/utils";
@@ -71,7 +71,7 @@ export function DailyBars({
                   <div
                     key={p.day}
                     title={`${dayLabel(p.day)} · ${p.label}`}
-                    className={cn("flex-1 rounded-t-md transition-[height] duration-500", latest ? "bg-accent" : "bg-accent/40")}
+                    className={cn("flex-1 rounded-t-md transition-[height] duration-500", latest ? "bg-brand" : "bg-brand/30")}
                     style={{ height: p.value > 0 ? `max(${h}%, 3px)` : "2px" }}
                   />
                 );

@@ -1,4 +1,4 @@
-import type { AssetInfo } from "@lancio/shared";
+import type { AssetInfo } from "@twain/shared";
 import { EthIcon } from "@/components/ui/icons";
 import { cn } from "@/lib/utils";
 

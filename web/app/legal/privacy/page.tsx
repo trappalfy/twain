@@ -4,7 +4,7 @@ import { LEGAL_DRAFT_NOTE, LegalPage, type LegalSection } from "@/components/doc
 
 export const metadata: Metadata = {
   title: "Privacy Policy",
-  description: `Privacy Policy for Lancio. ${LEGAL_DRAFT_NOTE}`,
+  description: `Privacy Policy for twain. ${LEGAL_DRAFT_NOTE}`,
   robots: { index: false }, // until counsel signs off
 };
 
@@ -19,7 +19,7 @@ const SECTIONS: LegalSection[] = [
   {
     id: "onchain",
     title: "Public blockchain data",
-    body: "This section will explain that transactions on Robinhood Chain are public and permanent, and that they cannot be changed or deleted by Lancio.",
+    body: "This section will explain that transactions on Robinhood Chain are public and permanent, and that they cannot be changed or deleted by twain.",
   },
   {
     id: "browser",
@@ -41,7 +41,7 @@ export default function PrivacyPage() {
   return (
     <LegalPage
       title="Privacy Policy"
-      intro="The Privacy Policy will explain what data the Lancio website handles and why. It is being prepared and will be published here after legal review."
+      intro="The Privacy Policy will explain what data the twain website handles and why. It is being prepared and will be published here after legal review."
       sections={SECTIONS}
     />
   );

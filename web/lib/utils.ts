@@ -6,12 +6,12 @@ const twMerge = extendTailwindMerge({
     theme: {
       text: ["13", "28", "40", "56"],
       radius: ["section", "card", "image"],
-      shadow: ["section", "pop"],
+      shadow: ["section", "pop", "lift"],
     },
   },
 });
 
-/** className combiner: clsx + tailwind-merge (knows Lancio's custom text sizes and radii). */
+/** className combiner: clsx + tailwind-merge (knows twain's custom text sizes and radii). */
 export function cn(...inputs: ClassValue[]) {
   return twMerge(clsx(inputs));
 }

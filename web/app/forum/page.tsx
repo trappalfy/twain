@@ -1,4 +1,4 @@
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import type { Metadata } from "next";
 import { ForumSidebar } from "@/components/forum/ForumSidebar";
 import { PostFeed } from "@/components/forum/PostFeed";

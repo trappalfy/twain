@@ -52,12 +52,12 @@ async function connect(): Promise<Conn> {
 }
 
 // Kept on globalThis so dev hot reloads reuse one connection (PGlite allows one instance per data dir).
-const g = globalThis as unknown as { __lancioConn?: Promise<Conn> };
+const g = globalThis as unknown as { __twainConn?: Promise<Conn> };
 
 export function getConn(): Promise<Conn> {
-  g.__lancioConn ??= connect().catch((err) => {
-    g.__lancioConn = undefined;
+  g.__twainConn ??= connect().catch((err) => {
+    g.__twainConn = undefined;
     throw err;
   });
-  return g.__lancioConn;
+  return g.__twainConn;
 }

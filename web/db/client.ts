@@ -15,12 +15,12 @@ async function init(): Promise<DB> {
 }
 
 // Kept on globalThis so dev hot reloads reuse one connection (PGlite allows one instance per data dir).
-const g = globalThis as unknown as { __lancioForumDb?: Promise<DB> };
+const g = globalThis as unknown as { __twainForumDb?: Promise<DB> };
 
 export function getDb(): Promise<DB> {
-  g.__lancioForumDb ??= init().catch((err) => {
-    g.__lancioForumDb = undefined;
+  g.__twainForumDb ??= init().catch((err) => {
+    g.__twainForumDb = undefined;
     throw err;
   });
-  return g.__lancioForumDb;
+  return g.__twainForumDb;
 }

@@ -5,7 +5,7 @@ import { SlidersHorizontal } from "lucide-react";
 import { useCallback, useEffect, useState } from "react";
 import { cn } from "@/lib/utils";
 
-const STORAGE_KEY = "lancio-slippage-bps";
+const STORAGE_KEY = "twain-slippage-bps";
 export const DEFAULT_SLIPPAGE_BPS = 200;
 const MIN_BPS = 1;
 const MAX_BPS = 5_000;

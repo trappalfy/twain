@@ -1,67 +1,56 @@
 import type { Metadata, Viewport } from "next";
 import type { ReactNode } from "react";
-import { Cinzel, Inter, JetBrains_Mono } from "next/font/google";
-import { COPY } from "@lancio/shared";
-import { FontPreview } from "@/components/dev/FontPreview";
+import { JetBrains_Mono, Sora } from "next/font/google";
 import { Footer } from "@/components/layout/Footer";
-import { Header } from "@/components/layout/Header";
 import { StatusBanner } from "@/components/layout/StatusBanner";
+import { SiteNav } from "@/components/site-nav";
+import { LiquidGlassFilters } from "@/components/ui/liquid-glass";
+import { siteConfig } from "@/config/site";
 import { config } from "@/lib/config";
-import { FONT_STORAGE_KEY, fontPreviewCss } from "@/lib/font-options";
 import { Providers } from "@/lib/providers";
-import { candidateFontVars } from "./font-candidates";
 import "./globals.css";
 
-const cinzel = Cinzel({ subsets: ["latin"], weight: ["500", "600", "700"], variable: "--font-cinzel", display: "swap" });
-const inter = Inter({ subsets: ["latin"], variable: "--font-inter", display: "swap" });
+const sora = Sora({ subsets: ["latin"], weight: ["400", "500", "600"], variable: "--font-sora", display: "swap" });
 const mono = JetBrains_Mono({ subsets: ["latin"], variable: "--font-jetbrains", display: "swap" });
 
-/** TEMPORARY: font candidates + switcher, local dev only (see lib/font-options.ts). */
-const FONT_PREVIEW = process.env.NODE_ENV !== "production";
+const POSTER = "/media/twain-header-poster.jpg";
 
 export const metadata: Metadata = {
   metadataBase: new URL(config.siteUrl),
-  title: { default: "Lancio", template: "%s · Lancio" },
-  description: COPY.footer.description,
-  applicationName: "Lancio",
-  openGraph: { siteName: "Lancio", type: "website" },
-  twitter: { card: "summary_large_image", site: config.xHandle ? `@${config.xHandle}` : undefined },
+  title: { default: siteConfig.title, template: "%s · twain" },
+  description: siteConfig.description,
+  applicationName: siteConfig.name,
+  openGraph: { siteName: siteConfig.name, type: "website", images: [{ url: POSTER, width: 1920, height: 1080 }] },
+  twitter: { card: "summary_large_image", site: `@${siteConfig.x.handle}`, images: [POSTER] },
 };
 
 export const viewport: Viewport = {
-  themeColor: "#14100C",
-  colorScheme: "dark",
+  themeColor: "#EEF6FF",
+  colorScheme: "light",
 };
 
-/** Runs before first paint: status-banner dismissal (+ the dev font preview choice). The site has a single dark theme. */
-const bootScript = `(function(){try{var d=document.documentElement;var b=${JSON.stringify(
-  config.banner?.id ?? "",
-)};if(b&&localStorage.getItem('lancio-banner-dismissed:'+b))d.dataset.bannerDismissed=''${
-  FONT_PREVIEW
-    ? `;var f=JSON.parse(localStorage.getItem(${JSON.stringify(FONT_STORAGE_KEY)})||'null');if(f){d.dataset.fontH=f.h;d.dataset.fontUi=f.ui}`
-    : ""
-}}catch(e){}})();`;
+/**
+ * Runs before first paint:
+ * - real SVG refraction only where it renders: Chromium + mouse/trackpad + no reduced transparency (header brief 6.5);
+ * - status-banner dismissal.
+ */
+const liquidDetect = `(()=>{try{var u=navigator.userAgentData,m=function(q){return matchMedia(q).matches};if(u&&u.brands&&u.brands.some(function(b){return/Chromium/.test(b.brand)})&&m("(pointer: fine)")&&!m("(prefers-reduced-transparency: reduce)"))document.documentElement.dataset.liquid="svg"}catch(e){}})()`;
+const bannerScript = `(function(){try{var b=${JSON.stringify(config.banner?.id ?? "")};if(b&&localStorage.getItem('twain-banner-dismissed:'+b))document.documentElement.dataset.bannerDismissed=''}catch(e){}})();`;
 
 export default function RootLayout({ children }: Readonly<{ children: ReactNode }>) {
   return (
-    <html
-      lang="en"
-      data-theme="dark"
-      data-scroll-behavior="smooth"
-      suppressHydrationWarning
-      className={`${cinzel.variable} ${inter.variable} ${mono.variable}${FONT_PREVIEW ? ` ${candidateFontVars}` : ""}`}
-    >
+    <html lang="en" data-scroll-behavior="smooth" suppressHydrationWarning className={`${sora.variable} ${mono.variable}`}>
       <head>
-        <script dangerouslySetInnerHTML={{ __html: bootScript }} />
-        {FONT_PREVIEW && <style dangerouslySetInnerHTML={{ __html: fontPreviewCss() }} />}
+        <script dangerouslySetInnerHTML={{ __html: liquidDetect }} />
+        <script dangerouslySetInnerHTML={{ __html: bannerScript }} />
       </head>
-      <body className="flex min-h-dvh flex-col">
+      <body className="flex min-h-dvh flex-col bg-page font-sans text-ink antialiased">
+        <LiquidGlassFilters />
         <Providers>
+          <SiteNav />
           <StatusBanner />
-          <Header />
-          <main className="flex-1">{children}</main>
+          <main className="flex-1 pt-(--header-h)">{children}</main>
           <Footer />
-          {FONT_PREVIEW && <FontPreview />}
         </Providers>
       </body>
     </html>

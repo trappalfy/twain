@@ -5,18 +5,15 @@ type CardProps = HTMLAttributes<HTMLElement> & {
   as?: "section" | "div" | "article" | "aside";
   /** 32px desktop / 20px mobile padding (default true). */
   padded?: boolean;
-  /** Canvas texture overlay (big panels). */
-  texture?: boolean;
 };
 
 /** Section card: radius 28, --surface, soft shadow. */
-export function Card({ as: Tag = "section", padded = true, texture, className, ...rest }: CardProps) {
+export function Card({ as: Tag = "section", padded = true, className, ...rest }: CardProps) {
   return (
     <Tag
       className={cn(
         "rounded-section bg-surface border border-border/60 shadow-section",
         padded && "p-5 md:p-8",
-        texture && "canvas-texture",
         className,
       )}
       {...rest}
@@ -29,7 +26,7 @@ export function SubCard({ className, padded = true, ...rest }: HTMLAttributes<HT
   return <div className={cn("rounded-card bg-surface-2", padded && "p-4 md:p-5", className)} {...rest} />;
 }
 
-/** Card header row: Cinzel title + optional count/subtitle on the left, controls on the right. */
+/** Card header row: title + optional count/subtitle on the left, controls on the right. */
 export function CardHeader({
   title,
   count,

@@ -1,6 +1,6 @@
 "use client";
 
-import { explorerTx, formatAsset, formatTokens, type TokenDetail } from "@lancio/shared";
+import { explorerTx, formatAsset, formatTokens, type TokenDetail } from "@twain/shared";
 import { ArrowUpRight } from "lucide-react";
 import { AddressLink, TimeAgo } from "@/components/common";
 import { Skeleton } from "@/components/ui";

@@ -1,6 +1,6 @@
 "use client";
 
-import { formatAsset, formatCount, formatPct, formatPriceAsset, formatTiny, formatUsd, type TokenDetail } from "@lancio/shared";
+import { formatAsset, formatCount, formatPct, formatPriceAsset, formatTiny, formatUsd, type TokenDetail } from "@twain/shared";
 import { Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { AddressLink, AssetIcon, TimeAgo, TokenImage } from "@/components/common";
@@ -29,7 +29,7 @@ export function TokenHeader({ token, notice, className }: { token: TokenDetail; 
             <div className="flex flex-wrap items-center gap-x-3 gap-y-1">
               <h1 className="min-w-0 truncate text-28 font-semibold tracking-tight text-text">{token.name}</h1>
               <span className="text-xl text-muted">${token.symbol}</span>
-              <Badge variant="curve" title={`Paired with ${asset.name}`}>
+              <Badge variant="outline" title={`Paired with ${asset.name}`}>
                 <AssetIcon asset={asset} size={14} />
                 {asset.symbol} pair
               </Badge>

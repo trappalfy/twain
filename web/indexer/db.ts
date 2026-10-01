@@ -55,15 +55,15 @@ async function ensureSchema(conn: Conn) {
   });
 }
 
-const g = globalThis as unknown as { __lancioIxReady?: Promise<void> };
+const g = globalThis as unknown as { __twainIxReady?: Promise<void> };
 
 async function ready(): Promise<Conn> {
   const conn = await getConn();
-  g.__lancioIxReady ??= ensureSchema(conn).catch((err) => {
-    g.__lancioIxReady = undefined;
+  g.__twainIxReady ??= ensureSchema(conn).catch((err) => {
+    g.__twainIxReady = undefined;
     throw err;
   });
-  await g.__lancioIxReady;
+  await g.__twainIxReady;
   return conn;
 }
 

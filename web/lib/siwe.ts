@@ -13,7 +13,7 @@ import { isUserRejection, toFriendlyError } from "./errors";
 
 export const meKey = ["forum", "me"] as const;
 
-export const SIWE_STATEMENT = "Sign in to Lancio to post, comment and vote. This signature sends no transaction and costs no gas.";
+export const SIWE_STATEMENT = "Sign in to twain to post, comment and vote. This signature sends no transaction and costs no gas.";
 
 const fetchMe = ({ signal }: { signal?: AbortSignal } = {}) => forumFetch<MeResponse>("/api/auth/me", { signal });
 

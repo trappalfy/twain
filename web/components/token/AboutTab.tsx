@@ -1,4 +1,4 @@
-import { COPY, formatAsset, mcapFromPriceX18, PARAMS, shortAddress, type TokenDetail } from "@lancio/shared";
+import { COPY, formatAsset, mcapFromPriceX18, PARAMS, shortAddress, type TokenDetail } from "@twain/shared";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AddressLink, CopyButton } from "@/components/common";

@@ -6,12 +6,8 @@ import { PARAMS } from "./constants";
 
 export const COPY = {
   hero: {
-    eyebrow: "COIN LAUNCHPAD · ROBINHOOD CHAIN",
-    title: "EVERY LEGEND WAS LAUNCHED",
-    subline: "Launch a coin paired with any asset, from memes to tokenized stocks. Built on Robinhood Chain.",
     ctaLaunch: "Launch a coin",
     ctaExplore: "Explore coins",
-    facts: ["1,000,000,000 supply", "No allocations", "Trades on Uniswap from block one", "Liquidity locked forever"],
   },
   explore: {
     title: "Explore",
@@ -42,7 +38,7 @@ export const COPY = {
     subtitle: "Every market on Robinhood Chain launched here, read from onchain events.",
     footnote:
       "Figures come from the site's indexer of onchain events. USD values use each asset's current price. The 24h view covers the last full UTC day.",
-    chartSubtitle: "Last 14 UTC days. The most recent full day is in gold.",
+    chartSubtitle: "Last 14 UTC days. The most recent full day is in bright blue.",
     emptyChart: "The first day of data appears after the first UTC day closes.",
     empty: "No launches yet. The figures fill in with the first coin.",
   },
@@ -68,6 +64,6 @@ export const COPY = {
     AssetNotEnabled: "This asset is not open for new launches.",
     UserRejected: "Signature declined in wallet.",
   },
-  og: ["EVERY LEGEND WAS LAUNCHED", "THE RULES CAME FIRST"],
+  og: ["Pair your coin with anything.", "How pairing works"],
   audit: "The contracts are open source and verified, but have not been externally audited.",
 } as const;

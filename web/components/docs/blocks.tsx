@@ -1,6 +1,6 @@
 /**
  * Building blocks for docs MDX (content/docs/*.mdx). Server components only.
- * Protocol numbers come from @lancio/shared — never typed in by hand here.
+ * Protocol numbers come from @twain/shared — never typed in by hand here.
  */
 import {
   EXPLORER_URL,
@@ -17,7 +17,7 @@ import {
   quoteFromStart,
   splitFee,
   startPriceX18,
-} from "@lancio/shared";
+} from "@twain/shared";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import Image from "next/image";
 import type { ReactNode } from "react";

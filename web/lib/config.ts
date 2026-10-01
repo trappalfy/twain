@@ -1,4 +1,4 @@
-import { getDeployment, robinhood } from "@lancio/shared";
+import { getDeployment, robinhood } from "@twain/shared";
 
 /**
  * Runtime config. Every NEXT_PUBLIC_* var is read literally (process.env.NEXT_PUBLIC_X) —
@@ -17,8 +17,6 @@ export const config = {
   chainId: Number(process.env.NEXT_PUBLIC_CHAIN_ID || robinhood.id),
   rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || robinhood.rpcUrls.default.http[0],
   siteUrl: (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, ""),
-  /** X handle without "@", "" when not configured. */
-  xHandle: (process.env.NEXT_PUBLIC_X_HANDLE || "").replace(/^@/, ""),
   /**
    * Contracts not deployed yet (no launchpad address): nothing can exist onchain, so the data layer answers locally
    * with empty lists and zero stats instead of calling the indexer (lib/prelaunch.ts).

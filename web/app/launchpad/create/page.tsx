@@ -1,4 +1,4 @@
-import { PARAMS } from "@lancio/shared";
+import { PARAMS } from "@twain/shared";
 import { ChevronLeft } from "lucide-react";
 import type { Metadata } from "next";
 import { CreateForm } from "@/components/create/CreateForm";
@@ -9,7 +9,10 @@ export const metadata: Metadata = {
   description: `Launch a coin paired with any asset on Robinhood Chain: ${PARAMS.supply} supply, all of it in a Uniswap pool from block one, liquidity locked forever.`,
 };
 
-export default function CreatePage() {
+const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);
+
+export default async function CreatePage({ searchParams }: { searchParams: Promise<Record<string, string | string[] | undefined>> }) {
+  const sp = await searchParams;
   return (
     <div className="container-page py-6 md:py-10">
       <Button href="/" variant="outline" size="md" className="bg-surface pl-3.5">
@@ -17,7 +20,7 @@ export default function CreatePage() {
         Back
       </Button>
       <Card padded={false} className="mt-5 overflow-clip">
-        <CreateForm />
+        <CreateForm initialCoin={one(sp.coin)} initialPair={one(sp.pair)} />
       </Card>
     </div>
   );

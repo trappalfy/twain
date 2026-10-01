@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import { notFound } from "next/navigation";
-import { shortAddress } from "@lancio/shared";
+import { shortAddress } from "@twain/shared";
 import { getAddress, isAddress } from "viem";
 import { ProfileView } from "@/components/profile/ProfileView";
 
@@ -10,7 +10,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { address } = await params;
   if (!isAddress(address, { strict: false })) return { title: "Profile" };
   const a = getAddress(address);
-  return { title: `Profile ${shortAddress(a)}`, description: `Tokens launched, holdings and trades of ${a} on Lancio.` };
+  return { title: `Profile ${shortAddress(a)}`, description: `Tokens launched, holdings and trades of ${a} on twain.` };
 }
 
 export default async function Page({ params }: Props) {

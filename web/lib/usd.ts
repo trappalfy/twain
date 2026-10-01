@@ -1,6 +1,6 @@
 "use client";
 
-import { formatEth, formatUsd, weiToUsd } from "@lancio/shared";
+import { formatEth, formatUsd, weiToUsd } from "@twain/shared";
 import { useCallback } from "react";
 import { useEthUsd } from "./api";
 

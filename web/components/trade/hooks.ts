@@ -1,7 +1,7 @@
 "use client";
 
-import { NATIVE_ASSET, type AssetInfo, type TokenDetail } from "@lancio/shared";
-import { launchpadAbi, tokenAbi } from "@lancio/shared/abi";
+import { NATIVE_ASSET, type AssetInfo, type TokenDetail } from "@twain/shared";
+import { launchpadAbi, tokenAbi } from "@twain/shared/abi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";

@@ -1,4 +1,4 @@
-import { formatEth } from "@lancio/shared";
+import { formatEth } from "@twain/shared";
 import { cn } from "@/lib/utils";
 
 /** "0.02594 ETH" (≤4 significant digits). */

@@ -41,7 +41,7 @@ function localAllowed(): boolean {
 export async function store(bytes: Uint8Array, ext: StoredExt): Promise<Stored> {
   const hash = createHash("sha256").update(bytes).digest("hex");
   const jwt = process.env.PINATA_JWT;
-  if (jwt) return pinata(jwt, bytes, ext, `lancio-${hash.slice(0, 16)}.${ext}`);
+  if (jwt) return pinata(jwt, bytes, ext, `twain-${hash.slice(0, 16)}.${ext}`);
   if (!localAllowed()) throw new StorageError("Image storage is not configured.");
   const id = `${hash}.${ext}`;
   await mkdir(LOCAL_DIR, { recursive: true });

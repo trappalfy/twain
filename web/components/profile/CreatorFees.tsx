@@ -1,7 +1,7 @@
 "use client";
 
-import { CREATOR_FEE_SHARE, PARAMS, assetToUsd, formatAsset, formatUsd, type AccountResponse, type AssetInfo, type Hex } from "@lancio/shared";
-import { launchpadAbi, lockerAbi } from "@lancio/shared/abi";
+import { CREATOR_FEE_SHARE, PARAMS, assetToUsd, formatAsset, formatUsd, type AccountResponse, type AssetInfo, type Hex } from "@twain/shared";
+import { launchpadAbi, lockerAbi } from "@twain/shared/abi";
 import { useEffect, type ReactNode } from "react";
 import { zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain } from "wagmi";

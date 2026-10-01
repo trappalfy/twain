@@ -1,6 +1,6 @@
 "use client";
 
-import { formatCount } from "@lancio/shared";
+import { formatCount } from "@twain/shared";
 import { useQueryClient } from "@tanstack/react-query";
 import { ArrowLeft } from "lucide-react";
 import Link from "next/link";
@@ -120,7 +120,6 @@ export function PostThread({ id }: { id: number }) {
       return (
         <Card>
           <EmptyState
-            image="/brand/painting-gate.png"
             title="This post is not here."
             description="It may have been hidden by a moderator."
             action={

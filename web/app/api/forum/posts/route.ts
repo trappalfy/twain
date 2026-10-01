@@ -73,7 +73,7 @@ export async function POST(req: Request) {
     try {
       await api.token(token);
     } catch (err) {
-      if (err instanceof ApiError && err.status === 404) return fail(400, "This token was not launched on Lancio.");
+      if (err instanceof ApiError && err.status === 404) return fail(400, "This token was not launched on twain.");
       return fail(503, "Token data is unavailable right now. Try again shortly.");
     }
 

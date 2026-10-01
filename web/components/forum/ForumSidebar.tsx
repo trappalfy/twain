@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY } from "@lancio/shared";
+import { COPY } from "@twain/shared";
 import { ArrowRight, Search } from "lucide-react";
 import Link from "next/link";
 import { useEffect, useState } from "react";

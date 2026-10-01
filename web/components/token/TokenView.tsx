@@ -1,6 +1,6 @@
 "use client";
 
-import type { TokenDetail } from "@lancio/shared";
+import type { TokenDetail } from "@twain/shared";
 import type { ReactNode } from "react";
 import { useState } from "react";
 import { useAccount as useWallet } from "wagmi";

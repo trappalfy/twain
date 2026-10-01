@@ -1,4 +1,4 @@
-import { formatPct } from "@lancio/shared";
+import { formatPct } from "@twain/shared";
 
 /** Price impact at or above this is shown in the sell colour. */
 export const IMPACT_WARN_BPS = 500;

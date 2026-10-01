@@ -18,7 +18,7 @@ export function HomeApp() {
     <div
       id={EXPLORE_ANCHOR}
       tabIndex={-1}
-      className="container-page flex scroll-mt-[calc(var(--header-h)+16px)] flex-col gap-5 pt-2 pb-16 outline-none md:gap-6 md:pb-24"
+      className="container-page flex scroll-mt-[calc(var(--header-h)+16px)] flex-col gap-5 pt-6 pb-16 outline-none md:gap-6 md:pt-8 md:pb-24"
     >
       <div className="flex items-center gap-2.5 md:gap-3">
         <SearchTrigger onOpen={() => setSearchOpen(true)} />
@@ -36,7 +36,7 @@ export function HomeApp() {
 /** Suspense fallback while search params resolve (static shell). */
 export function HomeAppFallback() {
   return (
-    <div className="container-page flex flex-col gap-5 pt-2 pb-16 md:gap-6">
+    <div className="container-page flex flex-col gap-5 pt-6 pb-16 md:gap-6 md:pt-8">
       <div className="h-12 rounded-full border border-border bg-surface" />
       <div className="h-80 rounded-section border border-border/60 bg-surface" />
     </div>

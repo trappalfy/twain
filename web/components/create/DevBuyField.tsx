@@ -1,6 +1,6 @@
 "use client";
 
-import { COPY, TOTAL_SUPPLY, formatAsset, formatPct, formatTokens, type AssetInfo } from "@lancio/shared";
+import { COPY, TOTAL_SUPPLY, formatAsset, formatPct, formatTokens, type AssetInfo } from "@twain/shared";
 import { AssetIcon } from "@/components/common";
 import { Field } from "@/components/ui";
 import { cn } from "@/lib/utils";

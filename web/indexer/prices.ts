@@ -7,7 +7,7 @@
  *    (one request for up to 30 tokens), DexScreener's deepest pair as fallback for the price.
  * Responses are cached by Next's data cache (assets 1 h, prices 60 s); a failing source yields null, never an error.
  */
-import type { AssetInfo } from "@lancio/shared";
+import type { AssetInfo } from "@twain/shared";
 import { fetchEthUsd } from "@/lib/server/eth-usd";
 import type { AssetRow } from "./schema";
 import { lc, mapLimit, ZERO_ADDRESS, type Hex } from "./shared";

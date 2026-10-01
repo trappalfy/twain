@@ -1,6 +1,6 @@
 "use client";
 
-import { TOKEN_LIMITS } from "@lancio/shared";
+import { TOKEN_LIMITS } from "@twain/shared";
 import { Check, Crop, ImagePlus, RefreshCw, Trash2, Upload } from "lucide-react";
 import { useRef, useState, type DragEvent } from "react";
 import type { Area } from "react-easy-crop";

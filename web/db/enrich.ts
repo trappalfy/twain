@@ -1,5 +1,5 @@
-import { robinhood, type Hex } from "@lancio/shared";
-import { tokenAbi } from "@lancio/shared/abi";
+import { robinhood, type Hex } from "@twain/shared";
+import { tokenAbi } from "@twain/shared/abi";
 import { createPublicClient, defineChain, http } from "viem";
 import { api, ApiError } from "@/lib/api";
 import { config } from "@/lib/config";

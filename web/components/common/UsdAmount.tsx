@@ -1,6 +1,6 @@
 "use client";
 
-import { assetToUsd, formatAsset, formatEth, formatUsd, weiToUsd } from "@lancio/shared";
+import { assetToUsd, formatAsset, formatEth, formatUsd, weiToUsd } from "@twain/shared";
 import { useEthUsd } from "@/lib/api";
 import { cn } from "@/lib/utils";
 
