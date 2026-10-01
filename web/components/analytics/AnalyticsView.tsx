@@ -1,0 +1,253 @@
+"use client";
+
+import { COPY, PARAMS, formatAsset, formatCount, formatPct, formatUsd, type ProtocolStats } from "@lancio/shared";
+import { Plus } from "lucide-react";
+import { useState, type ReactNode } from "react";
+import { AssetIcon } from "@/components/common";
+import { Button, Card, EmptyState, PillTabs, Skeleton, StatTile, SubCard } from "@/components/ui";
+import { useDaily, useStats } from "@/lib/api";
+import { cn } from "@/lib/utils";
+import { DailyBars, dayLabel } from "./DailyBars";
+
+type Win = "24h" | "all";
+
+const usd = (v: number | null | undefined) => (v == null ? "—" : formatUsd(v));
+
+function Change({ pct }: { pct: number | null | undefined }) {
+  if (pct == null) return <span>No prior day to compare</span>;
+  return (
+    <span>
+      <span className={cn(pct > 0 ? "text-buy" : pct < 0 ? "text-sell" : "text-muted")}>{formatPct(pct, { sign: true })}</span> vs prior day
+    </span>
+  );
+}
+
+const timeFmt = (ts: number) => new Date(ts * 1000).toLocaleTimeString("en-US", { hour: "numeric", minute: "2-digit" });
+
+function UpdatedLine({ stats }: { stats: ProtocolStats | undefined }) {
+  if (!stats) return <Skeleton className="mt-3 h-4 w-72" />;
+  return (
+    <p className="mt-3 text-13 text-muted tabular">
+      {stats.latestCompleteDay
+        ? `Updated ${timeFmt(stats.updatedAt)}, latest complete day ${dayLabel(stats.latestCompleteDay)} UTC.`
+        : `Updated ${timeFmt(stats.updatedAt)}. No complete UTC day yet.`}
+    </p>
+  );
+}
+
+function Overview() {
+  // Until the first UTC day with activity has closed, the 24h view is all zeros: open on "All time" instead.
+  const { data: allTime } = useStats("all");
+  const [picked, setWin] = useState<Win | null>(null);
+  const win: Win = picked ?? (allTime?.latestCompleteDay ? "24h" : "all");
+  const { data: stats, isLoading, isError } = useStats(win);
+  const is24 = win === "24h";
+  const pairs = stats ? stats.byAsset.filter((a) => a.launches > 0 || a.volume !== "0").length : 0;
+
+  const tile = (label: string, value: ReactNode, sub: ReactNode, hint?: string) => (
+    <StatTile
+      label={label}
+      hint={hint}
+      value={isLoading || !stats ? <Skeleton className="h-10 w-28 md:h-12" /> : value}
+      sub={isLoading || !stats ? <Skeleton className="h-4 w-24" /> : sub}
+    />
+  );
+
+  return (
+    <Card as="section" texture aria-labelledby="analytics-title">
+      <div className="flex flex-col gap-5 md:flex-row md:items-start md:justify-between">
+        <div className="min-w-0">
+          <h1 id="analytics-title" className="font-heading text-28 text-text md:text-40">
+            {COPY.analytics.title}
+          </h1>
+          <p className="mt-2 max-w-xl text-sm text-muted md:text-base">{COPY.analytics.subtitle}</p>
+          <UpdatedLine stats={stats} />
+        </div>
+        <PillTabs
+          aria-label="Time window"
+          value={win}
+          onChange={setWin}
+          items={[
+            { value: "24h", label: "24h" },
+            { value: "all", label: "All time" },
+          ]}
+          className="self-start"
+        />
+      </div>
+
+      {isError && !stats ? (
+        <p className="mt-8 text-sm text-muted">Protocol figures are unavailable right now. Retrying.</p>
+      ) : (
+        <div className="mt-8 grid gap-3 sm:grid-cols-2 lg:grid-cols-4">
+          {tile("Volume", usd(stats?.volumeUsd), is24 ? <Change pct={stats?.volumeChangePct} /> : "All time", "Every pool swap, valued at each asset's current price.")}
+          {tile("Launches", stats && formatCount(stats.launches), is24 ? <Change pct={stats?.launchesChangePct} /> : "All time")}
+          {tile("Unique creators", stats && formatCount(stats.uniqueCreators), "All time")}
+          {tile("Pairs traded", stats && formatCount(pairs), is24 ? "Last full UTC day" : "All time", "Assets the coins were paired with.")}
+        </div>
+      )}
+
+      <p className="mt-5 text-13 text-muted">{COPY.analytics.footnote}</p>
+    </Card>
+  );
+}
+
+function FeeTile({
+  label,
+  hint,
+  value,
+  rows,
+  loading,
+}: {
+  label: string;
+  hint?: string;
+  value: ReactNode;
+  rows: { label: ReactNode; value: ReactNode }[];
+  loading: boolean;
+}) {
+  return (
+    <div className="flex flex-col">
+      <StatTile
+        className="rounded-b-none pb-4"
+        label={label}
+        hint={hint}
+        value={loading ? <Skeleton className="h-10 w-28 md:h-12" /> : value}
+        sub=" "
+      />
+      <SubCard className="flex-1 rounded-t-none pt-0">
+        <dl className="space-y-2 border-t border-border pt-4 text-sm">
+          {rows.length === 0 && !loading ? <p className="text-muted">Nothing yet.</p> : null}
+          {rows.map((r, i) => (
+            <div key={i} className="flex items-center justify-between gap-3">
+              <dt className="text-muted">{r.label}</dt>
+              <dd className="text-text tabular">{loading ? <Skeleton className="h-4 w-16" /> : r.value}</dd>
+            </div>
+          ))}
+        </dl>
+      </SubCard>
+    </div>
+  );
+}
+
+function Fees() {
+  const { data: stats, isLoading } = useStats("all");
+  const loading = isLoading || !stats;
+  const creatorShare = Number(PARAMS.feeSplit.split("/")[0]) / 100;
+  const perAsset = (part: number) =>
+    (stats?.byAsset ?? [])
+      .filter((a) => a.fees !== "0")
+      .map((a) => ({
+        label: (
+          <span className="inline-flex items-center gap-1.5">
+            <AssetIcon asset={a.asset} size={14} />
+            {a.asset.symbol}
+          </span>
+        ),
+        value: formatAsset((BigInt(a.fees) * BigInt(Math.round(part * 100))) / 100n, a.asset),
+      }));
+
+  return (
+    <Card as="section" aria-labelledby="fees-title">
+      <div className="flex flex-col gap-2 md:flex-row md:items-baseline md:justify-between">
+        <div>
+          <h2 id="fees-title" className="font-heading text-28 text-text">
+            Fees
+          </h2>
+          <p className="mt-2 max-w-2xl text-sm text-muted">
+            All time. Every trade pays the pool {PARAMS.poolFeePct}: {PARAMS.creatorFeePct} to the coin&apos;s creator and{" "}
+            {PARAMS.protocolFeePct} to the protocol, in the asset the coin is paired with.
+          </p>
+        </div>
+        <p className="shrink-0 text-13 text-muted">USD at each asset&apos;s current price</p>
+      </div>
+
+      <div className="mt-8 grid gap-3 md:grid-cols-3">
+        <FeeTile
+          label="Paid to creators"
+          hint="Fees earned by creators, collected from the pools or not."
+          value={usd(stats?.feesUsd.creators)}
+          loading={loading}
+          rows={perAsset(creatorShare)}
+        />
+        <FeeTile label="Protocol treasury" value={usd(stats?.feesUsd.protocol)} loading={loading} rows={perAsset(1 - creatorShare)} />
+        <FeeTile
+          label="Volume by pair"
+          hint="Asset side of every pool swap."
+          value={usd(stats?.volumeUsd)}
+          loading={loading}
+          rows={(stats?.byAsset ?? [])
+            .filter((a) => a.volume !== "0")
+            .map((a) => ({
+              label: (
+                <span className="inline-flex items-center gap-1.5">
+                  <AssetIcon asset={a.asset} size={14} />
+                  {a.asset.symbol}
+                </span>
+              ),
+              value: formatAsset(a.volume, a.asset),
+            }))}
+        />
+      </div>
+    </Card>
+  );
+}
+
+function Charts() {
+  const { data, isLoading } = useDaily(14);
+  const last = data?.at(-1);
+
+  return (
+    <div className="grid gap-4 md:grid-cols-2">
+      <DailyBars
+        title="Trading volume"
+        loading={isLoading}
+        headline={last ? usd(last.volumeUsd) : null}
+        points={data?.map((p) => ({ day: p.day, value: p.volumeUsd ?? 0, label: usd(p.volumeUsd) }))}
+      />
+      <DailyBars
+        title="Coin launches"
+        loading={isLoading}
+        headline={last ? formatCount(last.launches) : null}
+        points={data?.map((p) => ({ day: p.day, value: p.launches, label: formatCount(p.launches) }))}
+      />
+    </div>
+  );
+}
+
+/** Nothing launched yet: one card instead of rows of zeros. */
+function NoLaunches() {
+  return (
+    <Card as="section" texture aria-labelledby="analytics-title">
+      <h1 id="analytics-title" className="font-heading text-28 text-text md:text-40">
+        {COPY.analytics.title}
+      </h1>
+      <p className="mt-2 max-w-xl text-sm text-muted md:text-base">{COPY.analytics.subtitle}</p>
+      <EmptyState
+        title={COPY.analytics.empty}
+        className="pt-12 pb-4"
+        action={
+          <Button href="/launchpad/create">
+            <Plus size={16} aria-hidden />
+            Create
+          </Button>
+        }
+      />
+    </Card>
+  );
+}
+
+export function AnalyticsView() {
+  const { data: allTime } = useStats("all");
+  return (
+    <div className="container-page flex flex-col gap-4 py-8 md:gap-6 md:py-12">
+      {allTime?.launches === 0 ? (
+        <NoLaunches />
+      ) : (
+        <>
+          <Overview />
+          <Fees />
+          <Charts />
+        </>
+      )}
+    </div>
+  );
+}

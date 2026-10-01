@@ -1,0 +1,175 @@
+/**
+ * REST contract between the built-in indexer (web/indexer, routes under /api) and the web app.
+ * Amounts are decimal strings in the smallest unit of their currency (coin: 18 decimals; asset: its own decimals).
+ * Prices: `priceX18` = the asset's smallest units per 1 whole coin × 1e18 (see packages/shared/src/pool.ts).
+ * USD figures are numbers computed at read time from the asset's current USD price; null when it is unknown.
+ * Timestamps are unix seconds. Addresses lowercase.
+ */
+export type Hex = `0x${string}`;
+export type SortKey = "recentBuys" | "newest" | "oldest" | "marketCap" | "volume";
+export type WindowKey = "all" | "24h" | "7d";
+export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+
+/** native = ETH, stock = Robinhood stock token, token = any other listed ERC-20. */
+export type AssetKind = "native" | "stock" | "token";
+
+export type AssetInfo = {
+  address: Hex; // 0x000…000 for native ETH
+  symbol: string;
+  name: string;
+  decimals: number;
+  logo: string | null;
+  kind: AssetKind;
+  usd: number | null; // USD per whole unit
+};
+
+/** GET /api/assets — every asset ever listed by the owner, with its launch settings. */
+export type ListedAsset = AssetInfo & {
+  enabled: boolean;
+  startMcap: string; // as set by the owner, smallest units
+  startTick: number; // "asset per coin", aligned to the tick spacing
+  coins: number; // coins launched against it
+};
+export type AssetsResponse = ListedAsset[];
+
+export type TokenMeta = {
+  description: string | null;
+  image: string | null; // resolved https URL (gateway), never raw ipfs://
+  x: string | null;
+  telegram: string | null;
+  website: string | null;
+};
+
+export type TokenSummary = {
+  address: Hex;
+  name: string;
+  symbol: string;
+  creator: Hex; // current creator
+  createdAt: number;
+  createdBlock: number;
+  metadataUri: string;
+  meta: TokenMeta;
+  asset: AssetInfo;
+  poolId: Hex;
+  coinIsCurrency0: boolean;
+  priceX18: string;
+  mcapAsset: string;
+  priceUsd: number | null;
+  mcapUsd: number | null;
+  volumeAsset24h: string; // rolling 24h, asset side of every swap
+  volumeAsset7d: string;
+  volumeAssetAll: string;
+  volumeUsd24h: number | null;
+  change24hPct: number | null; // price change vs 24h ago (rolling); null if no data
+  tradesCount: number;
+  holdersCount: number;
+  lastBuyAt: number | null;
+  lastTradeAt: number | null;
+};
+
+export type TokenDetail = TokenSummary & {
+  startPriceX18: string;
+  creatorFeesAccrued: string; // asset side, credited when the pool fees are collected
+  creatorFeesClaimed: string;
+  coinFeesToCreator: string; // coin side, paid out directly at collection
+};
+
+export type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
+
+/** GET /api/tokens?asset=&sort=SortKey&window=WindowKey&q=&page=1&pageSize=25 */
+export type TokensQuery = {
+  asset?: Hex | "all";
+  sort?: SortKey;
+  window?: WindowKey;
+  q?: string;
+  page?: number;
+  pageSize?: number;
+};
+export type TokensResponse = Page<TokenSummary>;
+
+/** GET /api/tokens/:address */
+export type TokenResponse = TokenDetail;
+
+/** GET /api/tokens/:address/candles?interval=1m&from=&to=  (ascending by time) */
+export type Candle = {
+  time: number; // bucket start
+  open: string; // priceX18
+  high: string;
+  low: string;
+  close: string;
+  volumeAsset: string;
+};
+export type CandlesResponse = Candle[];
+
+/** GET /api/tokens/:address/trades?limit=50&before=<cursor>  (newest first) */
+export type Trade = {
+  id: string; // `${txHash}-${logIndex}`
+  txHash: Hex;
+  blockNumber: number;
+  timestamp: number;
+  token: Hex;
+  symbol?: string;
+  asset: AssetInfo;
+  trader: Hex;
+  side: "buy" | "sell";
+  assetAmount: string; // buy: asset paid incl. fee; sell: asset received
+  tokenAmount: string;
+  feeAsset: string; // the 1% fee, valued in the asset
+  priceX18: string; // spot after the trade
+};
+export type TradesResponse = { items: Trade[]; nextCursor: string | null };
+
+/** GET /api/tokens/:address/holders?limit=20 */
+export type Holder = {
+  account: Hex;
+  balance: string;
+  shareBps: number; // of TOTAL_SUPPLY
+  label: "pool" | "creator" | null;
+};
+export type HoldersResponse = Holder[];
+
+/** Per-asset totals behind the USD figures. */
+export type AssetTotals = { asset: AssetInfo; volume: string; fees: string; launches: number };
+
+/** GET /api/stats?window=24h|all  — 24h = last completed UTC day */
+export type ProtocolStats = {
+  window: "24h" | "all";
+  updatedAt: number;
+  latestCompleteDay: string | null; // YYYY-MM-DD (UTC)
+  volumeUsd: number | null;
+  volumeChangePct: number | null; // vs prior day (24h only)
+  launches: number;
+  launchesChangePct: number | null;
+  uniqueCreators: number; // lifetime
+  feesUsd: { creators: number | null; protocol: number | null };
+  byAsset: AssetTotals[];
+};
+
+/** GET /api/stats/daily?days=14  (ascending, completed UTC days only; USD at current asset prices) */
+export type DailyPoint = { day: string; volumeUsd: number | null; launches: number };
+export type DailyResponse = DailyPoint[];
+
+/** GET /api/accounts/:address */
+export type CreatorFees = { asset: AssetInfo; accrued: string; claimed: string };
+export type AccountResponse = {
+  address: Hex;
+  created: TokenSummary[];
+  creatorFees: CreatorFees[];
+  tradesCount: number;
+};
+
+/** GET /api/accounts/:address/holdings */
+export type Holding = { token: TokenSummary; balance: string };
+export type HoldingsResponse = Holding[];
+
+/** GET /api/accounts/:address/trades?limit=50&before= */
+export type AccountTradesResponse = TradesResponse;
+
+/** GET /api/search?q=  (name/symbol prefix or address; max 10) */
+export type SearchResponse = TokenSummary[];
+
+/** GET /api/top?limit=10  (by USD market cap) */
+export type TopResponse = TokenSummary[];
+
+/** GET /api/eth-usd  (cached ~60s) */
+export type EthUsdResponse = { usd: number | null; updatedAt: number };

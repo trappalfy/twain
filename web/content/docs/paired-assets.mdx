@@ -1,0 +1,42 @@
+import { Callout, Facts } from "@/components/docs/blocks";
+
+Every coin trades against one asset: the one its creator picks at launch. Buyers pay in it, sellers receive it, and the coin's price and market cap are counted in it. The pair can't be changed later.
+
+## Which assets
+
+The launchpad keeps a list of assets that new coins can be paired with: native ETH, Robinhood's stock tokens, and other tokens on Robinhood Chain such as memecoins and stablecoins. The list is kept by the launchpad's owner, and it only shapes **future** launches: a coin that is already live keeps its pair, its pool and its liquidity whatever happens to the list.
+
+An asset joins the list only if it behaves like a plain token: no fee on transfer, no balance that changes by itself. A token that takes a cut on transfer can't be used at all: the launch transaction fails. A memecoin or other token also needs real liquidity of its own on Robinhood Chain, so that buyers can get it and its dollar price can be measured.
+
+## The start market cap
+
+Each asset on the list has one setting: the market cap a new coin starts at, written in the asset's own units. For ETH it is 2.73 ETH. For other assets it is set to roughly the same dollar value when the asset is listed.
+
+<Facts
+  rows={[
+    ["Set by", "The owner, per asset"],
+    ["Applies to", "Coins launched after it is set"],
+    ["Stored on the coin", "At launch, for good"],
+    ["Rounded", "Down to the pool's price grid, at most about 2%"],
+  ]}
+/>
+
+Because the start price is in the asset's units, a coin's dollar value moves with its asset: if the asset falls 10%, so does the coin's market cap in dollars, before anyone trades the coin.
+
+## Stock tokens
+
+Robinhood's stock tokens are ERC-20 tokens issued by Robinhood on Robinhood Chain, one per stock or fund. Each one tracks its stock's price; it is not the share itself. When the company splits its stock or pays a dividend, the token's balances stay the same and a multiplier records the change, so a coin paired with a stock token is not affected by those events.
+
+Dollar prices of stock tokens on this site come from Robinhood's public price feed for those tokens.
+
+<Callout title="Who controls a stock token">
+
+A stock token's contract is run by its issuer, who can upgrade it and block addresses. If the issuer ever blocked the Uniswap PoolManager, every pool holding that token would stop trading, including the coins paired with it. See [Risks](/docs/risks).
+
+</Callout>
+
+## Memecoins and other tokens
+
+Any other token on the list works the same way: a coin paired with a memecoin is bought with that memecoin, sold for it, and pays its creator's fee share in it. The coin's dollar value then moves with the memecoin, which is usually far more volatile than ETH or a stock.
+
+Dollar prices of these tokens on this site come from GeckoTerminal, with DexScreener as a fallback; both read the tokens' own pools on Robinhood Chain.

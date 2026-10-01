@@ -1,0 +1,110 @@
+import { COPY } from "@lancio/shared";
+import { Question, QuestionList } from "@/components/docs/blocks";
+
+## Launching
+
+<QuestionList>
+
+<Question q="What does it cost to launch a coin?">
+
+Gas only. There is no launch fee. If you also buy your own coin in the launch transaction, that buy is a normal pool buy with the 1% fee.
+
+</Question>
+
+<Question q="Which asset should I pair my coin with?">
+
+Any asset on the list works the same way. The pair decides what buyers pay with and what your fees are paid in: a coin paired with a stock token earns its fees in that stock token. See [Paired assets](/docs/paired-assets).
+
+</Question>
+
+<Question q="Can a creator get coins for free?">
+
+No. There are no allocations of any kind. A creator who wants to hold their coin buys it from the pool, at the pool's price, like everyone else. The launch lets the creator buy first, in the same transaction.
+
+</Question>
+
+<Question q="Can I change the name, ticker, supply or pair after launch?">
+
+No. The name, ticker and supply are fixed in the coin's contract, and the pair is fixed by its pool.
+
+</Question>
+
+</QuestionList>
+
+## Buying and selling
+
+<QuestionList>
+
+<Question q="Where can I trade a coin?">
+
+Anywhere that trades Uniswap v4: this site, aggregators, wallets, bots and the Uniswap app. The pool exists from the launch transaction on.
+
+</Question>
+
+<Question q="Why do I approve twice when I pay with a token?">
+
+Uniswap takes tokens through its Permit2 contract. The first approval lets Permit2 handle the token, once; the second lets Uniswap's router spend this amount. Paying with native ETH needs neither.
+
+</Question>
+
+<Question q="What does a price like 0.0₇393 ETH mean?">
+
+The small number counts the zeros after the decimal point. 0.0₇393 ETH is 0.0000000393 ETH.
+
+</Question>
+
+<Question q="How is market cap calculated?">
+
+Price times the full supply of 1,000,000,000, in the coin's asset. Dollar values use the asset's current price and are approximate.
+
+</Question>
+
+</QuestionList>
+
+## The pool
+
+<QuestionList>
+
+<Question q="Can anyone remove the liquidity?">
+
+No. The position belongs to the locker, which can only collect fees. It has no withdraw function, no owner, and cannot be upgraded. See [Liquidity lock](/docs/liquidity-lock).
+
+</Question>
+
+<Question q="Can the price go below the start?">
+
+Not through the launch liquidity: it starts at the start price, so selling every coin bought from the pool brings the price back to the start, not lower. Anyone can add their own liquidity to a Uniswap pool at any price, and only that could take it lower. The price in dollars can also fall if the paired asset falls.
+
+</Question>
+
+</QuestionList>
+
+## Fees and rules
+
+<QuestionList>
+
+<Question q="How do creators claim their fees?">
+
+From [Profile → Creator fees](/profile#creator-fees) or the coin's page. A claim collects the fees still in the pool and pays them in one transaction.
+
+</Question>
+
+<Question q="Can the fees or the rules change?">
+
+No. Every parameter is fixed in the contracts. The owner can only change the treasury address, pause the creation of new coins and manage the asset list for new coins. See [Admin powers](/docs/contracts#admin-powers).
+
+</Question>
+
+<Question q="Can anyone stop me from selling?">
+
+No contract function here can pause trading. Robinhood Chain's operator runs the sequencer and can delay or filter transactions, and an asset's issuer controls that asset's contract; see [Risks](/docs/risks).
+
+</Question>
+
+<Question q="Have the contracts been reviewed externally?">
+
+{COPY.audit}
+
+</Question>
+
+</QuestionList>

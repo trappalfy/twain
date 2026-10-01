@@ -1,0 +1,29 @@
+import { Callout, PoolParams, PriceTable } from "@/components/docs/blocks";
+
+A coin's price is set by its pool and nothing else. There is no order book and no listing price to negotiate: the pool quotes every trade from what it holds.
+
+## How the pool starts
+
+At launch the pool holds the coin's whole supply and none of the asset. Its liquidity is one position that starts exactly at the asset's [start market cap](/docs/paired-assets#the-start-market-cap) and reaches to the top of Uniswap's price range. The launch puts no liquidity below the start price: selling every coin bought from the pool brings the price back to where it started, not lower. (Anyone can add their own liquidity to a Uniswap pool at any price; only liquidity added that way could take the price below the start.)
+
+<PoolParams />
+
+## How it moves
+
+Inside that position the pool follows the constant-product rule, x · y = k, as if it had held the start market cap in the asset all along. Every buy adds the asset and takes coins out, so the price goes up; every sell does the opposite. The more the pool has sold, the more each further coin costs.
+
+Here is what a first buy does to a fresh coin paired with ETH:
+
+<PriceTable />
+
+The same holds for any asset, in its own units.
+
+## Where to trade
+
+The pool is a plain Uniswap v4 pool with no hook: a pair of the coin and its asset, a 1% fee and a fixed tick spacing. Anything that trades Uniswap v4 can trade it from the block it opens in: this site, aggregators, wallets, trading bots and the Uniswap app.
+
+<Callout title="Previews and slippage">
+
+The site quotes every trade with Uniswap's own quoter before you sign, and shows the price impact. Slippage protects you from a price worse than you accepted, not from a price that keeps falling.
+
+</Callout>

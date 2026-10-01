@@ -1,0 +1,36 @@
+import { Callout, Facts } from "@/components/docs/blocks";
+
+Every coin's liquidity is locked from the moment it exists. The whole supply goes into the pool in the launch transaction, as one position held by a contract that can do one thing: collect trading fees. It has no withdraw function, and it can't be upgraded to get one.
+
+## The locker
+
+The pool position is created by the locker and belongs to it directly. It is not a transferable receipt that someone could hand on or sell.
+
+<Facts
+  rows={[
+    ["Owns", "Every coin's pool position"],
+    ["Can do", "Collect the position's trading fees"],
+    ["Who can trigger a collection", "Anyone"],
+    ["Withdraw function", "None"],
+    ["Owner or admin", "None"],
+    ["Upgradeable", "No, it is not a proxy"],
+  ]}
+/>
+
+The collected fees are split between the creator and the protocol, as described on [Fees](/docs/fees). Nothing else can leave the locker.
+
+## If someone opens the pool first
+
+On Uniswap v4 anyone can open a pool for any pair. A coin's address depends on a random value in the creator's launch transaction, so nobody can know it in advance; and if a pool for that address already existed, the launch would simply fail and nothing would be created. The coin's liquidity can only ever go into a pool the launch opened itself, at the asset's start price.
+
+Other pools for the same coin can exist, with another fee or hook. They are not the coin's launch pool and hold none of its locked liquidity.
+
+## Rounding dust
+
+When the position is created, rounding leaves a tiny remainder of the coin that can't be placed into liquidity: a few thousand of its smallest units for an ETH pair, far below a single coin in any case. It stays in the locker forever. Nobody can withdraw it either.
+
+<Callout title="What a lock does not mean">
+
+Locked liquidity means the pool's liquidity can never be pulled. It does not mean the price can't fall. Holders can always sell into the pool, and the price moves with every trade.
+
+</Callout>

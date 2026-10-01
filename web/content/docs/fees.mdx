@@ -1,0 +1,35 @@
+import { Callout, FeeExamples } from "@/components/docs/blocks";
+
+Every trade in a coin's pool pays the pool 1%. The locked position earns all of it, and the split is fixed in the contracts, the same for every coin:
+
+- **0.6%** to the coin's creator
+- **0.4%** to the protocol
+
+There is no launch fee. Creating a coin costs only gas.
+
+## In which currency
+
+A pool fee is paid in what goes into the pool. A buy pays it in the coin's asset (ETH, a stock token, …); a sell pays it in the coin.
+
+- **The asset side** is credited on the launchpad: 60% to the creator's claimable balance, 40% to the protocol's.
+- **The coin side** goes out directly: 60% to the creator's wallet, 40% to the protocol's treasury.
+
+Fees sit in the pool until someone collects them from the locker. Anyone can trigger a collection; a creator's claim does it automatically.
+
+## Claiming
+
+Creator fees in the asset build up as a balance, and the creator claims them when they like, from [Profile → Creator fees](/profile#creator-fees) or the coin's page. A claim collects what is still in the pool and pays everything in one transaction, each coin in its own asset. Trades only add to what the pool owes, so a payment to a broken or hostile address can never block anyone's trade.
+
+A creator can hand the role to another wallet. Unclaimed fees go with it.
+
+## What that adds up to
+
+<FeeExamples />
+
+A coin that people keep trading keeps paying. The best thing a creator can do is stay, and that is the only behaviour a launchpad should reward.
+
+<Callout title="Where the protocol's share goes">
+
+The protocol's share goes to a treasury address. The owner can change that address, and that is all: no fee, split or rate can be changed. See [Contracts](/docs/contracts#admin-powers).
+
+</Callout>

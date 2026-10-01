@@ -1,0 +1,30 @@
+{
+  "chainId": 4663,
+  "assets": [
+    { "symbol": "ETH", "kind": "native", "address": "0x0000000000000000000000000000000000000000" },
+
+    { "symbol": "TSLA", "kind": "stock", "address": "0x322F0929c4625eD5bAd873c95208D54E1c003b2d" },
+    { "symbol": "NVDA", "kind": "stock", "address": "0xd0601ce157db5bdc3162bbac2a2c8af5320d9eec" },
+    { "symbol": "SPCX", "kind": "stock", "address": "0x4a0e65a3eccec6dbe60ae065f2e7bb85fae35eea" },
+    { "symbol": "SPY", "kind": "stock", "address": "0x117cc2133c37b721f49de2a7a74833232b3b4c0c" },
+    { "symbol": "GOOGL", "kind": "stock", "address": "0x2e0847e8910a9732eb3fb1bb4b70a580adad4fe3" },
+    { "symbol": "META", "kind": "stock", "address": "0xc0d6457c16cc70d6790dd43521c899c87ce02f35" },
+    { "symbol": "PLTR", "kind": "stock", "address": "0x894e1ec2d74ffe5aef8dc8a9e84686accb964f2a" },
+    { "symbol": "GME", "kind": "stock", "address": "0x1b0e319c6a659f002271b69db8a7df2f911c153e" },
+
+    { "symbol": "USDG", "kind": "token", "address": "0x5fc5360d0400a0fd4f2af552add042d716f1d168" },
+    { "symbol": "PONS", "kind": "token", "address": "0x39dbed3a2bd333467115de45665cc57f813c4571" },
+    { "symbol": "ORBIO", "kind": "token", "address": "0xaa07a0e9209e16ac99708c3ec70159c6ef3128a3" },
+    { "symbol": "MEME", "kind": "token", "address": "0x385f4f8ae47651ce5f58f5265395a669f8281e18" },
+    { "symbol": "AI", "kind": "token", "address": "0x2e8c31162b855a2ffa90f6f8634643ad6f111e18" },
+    { "symbol": "VIRTUAL", "kind": "token", "address": "0xc6911796042b15d7fa4f6cde69e245ddcd3d9c31" },
+    { "symbol": "REVENUE", "kind": "token", "address": "0x60042b65a0c0a90ba75d17879850b6f99d9422eb" },
+    { "symbol": "GENIE", "kind": "token", "address": "0xbd864614fdb413ab45f9a44181f61f0757c78bf2" },
+    { "symbol": "DUCAT", "kind": "token", "address": "0xd0ca71118ca21d674f9018a53026a38a0ab54dbf" },
+    { "symbol": "RBD", "kind": "token", "address": "0xb41c7ac9d46a980f8bdf1894b392a2a07ec9992a" },
+    { "symbol": "WORM", "kind": "token", "address": "0x3ba500f1ababbcf0f0247d06d1c56fd7e6c4c09d" },
+    { "symbol": "PEPONS", "kind": "token", "address": "0xfde368debe9e80f80785064a65719cec1f809dec" },
+    { "symbol": "ROBINPEPE", "kind": "token", "address": "0xa241395adcdf456f6dc04d1bc02b18e6f4c4052c" },
+    { "symbol": "TANK", "kind": "token", "address": "0x80ae70cfcb6725ea7f5ace439eb3e56518131299" }
+  ]
+}
