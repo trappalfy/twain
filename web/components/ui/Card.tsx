@@ -41,15 +41,16 @@ export function CardHeader({
   className?: string;
 }) {
   return (
-    <div className={cn("flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between", className)}>
-      <div className="min-w-0">
+    <div className={cn("flex flex-col gap-4 lg:flex-row lg:items-start lg:justify-between lg:gap-8", className)}>
+      <div className="min-w-0 lg:flex-1">
         <div className="flex items-center gap-3">
           <h2 className="font-heading text-28 text-text">{title}</h2>
           {count}
         </div>
         {subtitle && <p className="mt-2 max-w-xl text-sm text-muted">{subtitle}</p>}
       </div>
-      {actions && <div className="flex flex-wrap items-center gap-2">{actions}</div>}
+      {/* Desktop: the actions keep one row at the right edge; the subtitle wraps instead. */}
+      {actions && <div className="flex flex-wrap items-center gap-2 lg:shrink-0 lg:flex-nowrap">{actions}</div>}
     </div>
   );
 }

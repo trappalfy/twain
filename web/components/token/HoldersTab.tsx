@@ -34,7 +34,7 @@ export function HoldersTab({ token }: { token: TokenDetail }) {
             <tr key={h.account} className="border-t border-border/60">
               <td className="px-2 py-2.5 text-muted tabular">{i + 1}</td>
               <td className="px-2 py-2.5">
-                {h.label === "pool" ? (
+                {h.label === "pool" || h.label === "curve" ? (
                   <a
                     href={explorerAddress(h.account)}
                     target="_blank"
