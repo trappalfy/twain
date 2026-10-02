@@ -222,7 +222,7 @@ export async function tokenOgImage(address: string) {
           <div style={{ display: "flex", justifyContent: "space-between", marginTop: 22, fontFamily: "Sora", fontSize: 22, color: C.ink2 }}>
             <span>{`Price ${price}`}</span>
             <span style={{ fontWeight: 600, color: change == null ? C.ink : change >= 0 ? C.buy : C.sell }}>
-              {change == null ? COPY.token.lockedPlate : `${formatPct(change, { sign: true })} 24h`}
+              {change != null ? `${formatPct(change, { sign: true })} 24h` : t.phase === "pool" ? COPY.token.lockedPlate : "On its launch curve"}
             </span>
           </div>
         </div>

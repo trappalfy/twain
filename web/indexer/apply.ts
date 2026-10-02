@@ -1,16 +1,29 @@
 /**
- * Applies decoded events (Launchpad, LiquidityLocker, coin Transfers, PoolManager Swaps of the coins' pools) to the
- * indexer tables.
+ * Applies decoded events to the indexer tables:
+ *  - TwainLauncher CoinLaunched → coin row (curve constants and onchain token info read by the sync beforehand);
+ *  - each coin's Pons curve: CurveBuy / CurveSell → trades, exact reserve replay → price, progress;
+ *  - Pons factory: graduation phases, creator-fee-recipient overrides, pair-token approvals and economics;
+ *  - each coin's TwainFeeVault: fee splits, creator payouts, creator transfers;
+ *  - coin Transfers → holders; PoolManager Swaps in the graduated pools (+ the Pons hook's fee) → trades.
  *
  * All rows touched by a batch are loaded once, changed in memory and written back by `flush()` in the
  * sync transaction, so a batch costs a handful of queries however many events it holds.
  */
-import { coinIsCurrency0, mcapFromPriceX18, NATIVE_ASSET, openingSqrtPrice, POOL_FEE_PIPS, priceX18FromSqrt } from "@twain/shared";
-import { launchpadAbi, lockerAbi, poolManagerAbi, tokenAbi } from "@twain/shared/abi";
+import {
+  applyCurveBuy,
+  applyCurveSell,
+  coinIsCurrency0,
+  curvePriceX18,
+  curveProgressBps,
+  priceX18FromSqrt,
+  type CoinPhase,
+} from "@twain/shared";
+import { ponsCurveAbi, ponsFactoryAbi, ponsHookAbi, poolManagerAbi, tokenAbi, twainFeeVaultAbi, twainLauncherAbi } from "@twain/shared/abi";
 import { and, getTableColumns, inArray, sql } from "drizzle-orm";
 import type { PgColumn, PgTable, PgUpdateSetSource } from "drizzle-orm/pg-core";
-import { getAbiItem, type ParseEventLogsReturnType } from "viem";
+import { encodeAbiParameters, getAbiItem, keccak256, parseAbi, type ParseEventLogsReturnType } from "viem";
 import type { IxDb } from "./db";
+import { parseMeta, type OnchainInfo } from "./metadata";
 import {
   account,
   asset,
@@ -29,35 +42,117 @@ import {
   type TokenRow,
   type TradeRow,
 } from "./schema";
-import { chunk, dayKey, dayStartOf, INTERVALS, isCountedHolder, lc, ZERO_ADDRESS, type Hex } from "./shared";
+import {
+  chunk,
+  coinValue,
+  dayKey,
+  dayStartOf,
+  INTERVALS,
+  isCountedHolder,
+  lc,
+  mcapOf,
+  MEME_HOOK,
+  ZERO_ADDRESS,
+  type Hex,
+} from "./shared";
 
-export const transferEvent = getAbiItem({ abi: tokenAbi, name: "Transfer" });
-export const swapEvent = getAbiItem({ abi: poolManagerAbi, name: "Swap" });
+/** Factory events not in the shared fragment list. */
+const factoryExtraAbi = parseAbi([
+  "event LaunchGraduationRescued(address indexed token, address indexed recipient, uint256 quoteAmount, uint256 tokenAmount)",
+  "event LaunchConfigUpdated(uint256 indexed id)",
+]);
+
+/** Only the events the indexer handles, per emitter (names are unique across them). */
 export const ABIS = {
-  launchpad: launchpadAbi,
-  locker: lockerAbi,
-  token: [transferEvent],
-  pool: [swapEvent],
+  launcher: [getAbiItem({ abi: twainLauncherAbi, name: "CoinLaunched" })],
+  curve: [getAbiItem({ abi: ponsCurveAbi, name: "CurveBuy" }), getAbiItem({ abi: ponsCurveAbi, name: "CurveSell" })],
+  vault: [
+    getAbiItem({ abi: twainFeeVaultAbi, name: "FeesSplit" }),
+    getAbiItem({ abi: twainFeeVaultAbi, name: "CreatorPaid" }),
+    getAbiItem({ abi: twainFeeVaultAbi, name: "CreatorTransferred" }),
+  ],
+  coin: [getAbiItem({ abi: tokenAbi, name: "Transfer" })],
+  factory: [
+    getAbiItem({ abi: ponsFactoryAbi, name: "LaunchSwept" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "PoolGraduated" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "CreatorFeeRecipientChangeProposed" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "CreatorFeeRecipientChangeCancelled" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "CreatorFeeRecipientUpdated" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "PairTokenApprovalUpdated" }),
+    getAbiItem({ abi: ponsFactoryAbi, name: "PairTokenEconomicsUpdated" }),
+    getAbiItem({ abi: factoryExtraAbi, name: "LaunchGraduationRescued" }),
+    getAbiItem({ abi: factoryExtraAbi, name: "LaunchConfigUpdated" }),
+  ],
+  pool: [getAbiItem({ abi: poolManagerAbi, name: "Swap" })],
+  hook: [getAbiItem({ abi: ponsHookAbi, name: "HookFeeCollected" })],
 } as const;
 
 type Decoded<A extends (typeof ABIS)[keyof typeof ABIS]> = ParseEventLogsReturnType<A, undefined, true>[number];
+export type DecodedLog =
+  | Decoded<typeof ABIS.launcher>
+  | Decoded<typeof ABIS.curve>
+  | Decoded<typeof ABIS.vault>
+  | Decoded<typeof ABIS.coin>
+  | Decoded<typeof ABIS.factory>
+  | Decoded<typeof ABIS.pool>;
 
-/** ERC-20 details of a newly listed asset, read by the sync before the batch is applied. */
+/** ERC-20 details of a pair token, read by the sync when the token is first seen. */
 export type AssetMeta = { symbol: string; name: string; decimals: number };
 
+/** What a new coin's row needs besides CoinLaunched, read by the sync at the latest block (it never changes). */
+export type LaunchInfo = OnchainInfo & {
+  name: string;
+  symbol: string;
+  phantomQuote: bigint;
+  graduationThreshold: bigint;
+  reservedTokens: bigint;
+  supply: bigint;
+  feeBps: number;
+  taxBps: number;
+  poolFee: number;
+  tickSpacing: number;
+};
+
+/** Pons launch config 0 (the ETH pair's economics). */
+export type EthEconomics = { phantomQuote: bigint; graduationThreshold: bigint; enabled: boolean };
+
+/** The Pons hook's cut of a pool swap, from the HookFeeCollected that follows the Swap in the same transaction. */
+export type HookFee = { currency: Hex; fee: bigint; tax: bigint };
+
 /** A decoded log plus what the handlers need from its block and transaction. */
-export type Ev = (Decoded<typeof launchpadAbi> | Decoded<typeof lockerAbi> | Decoded<typeof ABIS.token> | Decoded<typeof ABIS.pool>) & {
+export type Ev = DecodedLog & {
   block: number;
   index: number;
   ts: number;
   txHash: Hex;
-  /** transaction.from — fetched for pool swaps only (the trader). */
+  /** transaction.from — fetched for pool swaps only (the trader; the Swap's sender is the router). */
   txFrom: Hex | null;
-  /** AssetSet only: the asset's ERC-20 details. */
+  /** Curve, vault and coin events: the coin they belong to. */
+  coin?: Hex;
+  /** CoinLaunched only. */
+  launch?: LaunchInfo;
+  /** PairToken* events for a token the database does not know yet. */
   assetMeta?: AssetMeta;
+  /** LaunchConfigUpdated(0) only: config 0 as it is now. */
+  ethEconomics?: EthEconomics;
+  /** Swap only. */
+  hookFee?: HookFee;
 };
 
 export const NATIVE_META: AssetMeta = { symbol: "ETH", name: "Ether", decimals: 18 };
+
+/** Pons graduated pool of a coin: sorted currencies, the launch's fee and spacing, the Pons meme hook. */
+export function ponsPoolId(coin: Hex, pairToken: Hex, fee: number, tickSpacing: number): Hex {
+  const [c0, c1] = BigInt(pairToken) < BigInt(coin) ? [pairToken, coin] : [coin, pairToken];
+  return lc(
+    keccak256(
+      encodeAbiParameters(
+        [{ type: "address" }, { type: "address" }, { type: "uint24" }, { type: "int24" }, { type: "address" }],
+        [c0, c1, fee, tickSpacing, MEME_HOOK],
+      ),
+    ),
+  );
+}
 
 /* ------------------------------------------------------------------ row cache */
 
@@ -101,7 +196,7 @@ async function selectIn<R>(keys: string[], query: (part: string[]) => Promise<R[
 /* ------------------------------------------------------------------ counters */
 
 type DailyCounters = Omit<DailyRow, "day" | "asset" | "dayStart">;
-const EMPTY_DAILY: DailyCounters = { volume: 0n, fees: 0n, trades: 0, launches: 0, protocolClaimed: 0n };
+const EMPTY_DAILY: DailyCounters = { volume: 0n, fees: 0n, trades: 0, launches: 0, creatorFees: 0n, protocolFees: 0n };
 
 type AccountCounters = Omit<AccountRow, "address">;
 const EMPTY_ACCOUNT: AccountCounters = { createdCount: 0, tradesCount: 0 };
@@ -117,6 +212,16 @@ function addCounters<T extends object>(row: T, delta: Partial<Record<keyof T, bi
 
 const abs = (x: bigint) => (x < 0n ? -x : x);
 
+type TradeInput = {
+  trader: Hex;
+  side: "buy" | "sell";
+  venue: "curve" | "pool";
+  assetAmount: bigint;
+  tokenAmount: bigint;
+  feeAsset: bigint;
+  price: bigint;
+};
+
 /* ------------------------------------------------------------------ batch */
 
 export class Batch {
@@ -129,9 +234,9 @@ export class Batch {
   readonly pools: Rows<PoolRow>;
   readonly trades: TradeRow[] = [];
 
-  constructor(private db: IxDb) {
+  constructor(db: IxDb) {
     this.assets = new Rows(async (keys) =>
-      (await db.select().from(asset).where(inArray(asset.address, keys as Hex[]))).map((r) => [r.address, r]),
+      (await selectIn(keys, (p) => db.select().from(asset).where(inArray(asset.address, p as Hex[])))).map((r) => [r.address, r]),
     );
     this.tokens = new Rows(async (keys) =>
       (await selectIn(keys, (p) => db.select().from(token).where(inArray(token.address, p as Hex[])))).map((r) => [r.address, r]),
@@ -184,27 +289,40 @@ export class Batch {
     const accounts: string[] = [];
     const pools: string[] = [];
     for (const ev of events) {
+      if (ev.coin) tokens.push(ev.coin);
       switch (ev.eventName) {
-        case "Transfer": {
-          const t = lc(ev.address);
-          tokens.push(t);
-          holders.push(holderKey(t, lc(ev.args.from)), holderKey(t, lc(ev.args.to)));
+        case "Transfer":
+          holders.push(holderKey(ev.coin ?? lc(ev.address), lc(ev.args.from)), holderKey(ev.coin ?? lc(ev.address), lc(ev.args.to)));
           break;
-        }
         case "Swap":
           pools.push(lc(ev.args.id));
           if (ev.txFrom) accounts.push(ev.txFrom);
           break;
-        case "CoinCreated":
-          assets.push(lc(ev.args.asset));
+        case "CoinLaunched":
+          assets.push(lc(ev.args.pairToken));
           accounts.push(lc(ev.args.creator));
           break;
-        case "AssetSet":
-        case "AssetDisabled":
-          assets.push(lc(ev.args.asset));
+        case "CurveBuy":
+          accounts.push(lc(ev.args.recipient));
           break;
-        default:
-          if ("args" in ev && ev.args && "coin" in ev.args) tokens.push(lc(ev.args.coin as string));
+        case "CurveSell":
+          accounts.push(lc(ev.args.seller));
+          break;
+        case "PairTokenApprovalUpdated":
+        case "PairTokenEconomicsUpdated":
+          assets.push(lc(ev.args.pairToken));
+          break;
+        case "LaunchConfigUpdated":
+          assets.push(ZERO_ADDRESS);
+          break;
+        case "LaunchSwept":
+        case "PoolGraduated":
+        case "LaunchGraduationRescued":
+        case "CreatorFeeRecipientChangeProposed":
+        case "CreatorFeeRecipientChangeCancelled":
+        case "CreatorFeeRecipientUpdated":
+          tokens.push(lc(ev.args.token));
+          break;
       }
     }
     await Promise.all([
@@ -230,10 +348,11 @@ export class Batch {
   }
 
   /**
-   * Updates all six candle intervals for one trade. A new bucket opens at the price before the trade
+   * Updates all six candle intervals for one price change. A new bucket opens at the price before the change
    * (`prevPrice`), so consecutive candles connect and the first candle of a coin starts at its launch price.
+   * `trades` = 0 for price moves that are not trades (the Pons hook converting its fees).
    */
-  private async upsertCandles(tokenAddr: Hex, ts: number, prevPrice: bigint, price: bigint, volume: bigint) {
+  private async upsertCandles(tokenAddr: Hex, ts: number, prevPrice: bigint, price: bigint, volume: bigint, trades = 1) {
     const hi = price > prevPrice ? price : prevPrice;
     const lo = price < prevPrice ? price : prevPrice;
     const keys = INTERVALS.map(([interval, secs]) => [interval, ts - (ts % secs)] as const);
@@ -250,81 +369,136 @@ export class Batch {
               low: row.low < price ? row.low : price,
               close: price,
               volume: row.volume + volume,
-              trades: row.trades + 1,
+              trades: row.trades + trades,
             }
-          : { token: tokenAddr, interval, time, open: prevPrice, high: hi, low: lo, close: price, volume, trades: 1 },
+          : { token: tokenAddr, interval, time, open: prevPrice, high: hi, low: lo, close: price, volume, trades },
       );
     }
   }
 
-  private async mustToken(address: Hex, ev: Ev): Promise<TokenRow> {
-    const t = await this.tokens.get(address);
+  private async mustToken(address: Hex | undefined, ev: Ev): Promise<TokenRow> {
+    const t = address ? await this.tokens.get(address) : undefined;
     if (!t) throw new Error(`${ev.eventName} for unknown coin ${address} in tx ${ev.txHash}`);
     return t;
+  }
+
+  /** One trade on either venue: trade row, coin price/volume, trader, daily totals, candles. */
+  private async recordTrade(t: TokenRow, ev: Ev, x: TradeInput, extra: Partial<TokenRow> = {}) {
+    const ts = ev.ts;
+    this.trades.push({
+      id: `${ev.txHash}-${ev.index}`,
+      token: t.address,
+      asset: t.asset,
+      trader: x.trader,
+      side: x.side,
+      venue: x.venue,
+      assetAmount: x.assetAmount,
+      tokenAmount: x.tokenAmount,
+      feeAsset: x.feeAsset,
+      price: x.price,
+      txHash: ev.txHash,
+      blockNumber: ev.block,
+      logIndex: ev.index,
+      timestamp: ts,
+    });
+    this.tokens.put(t.address, {
+      ...t,
+      ...extra,
+      price: x.price,
+      mcap: mcapOf(x.price, t.supply),
+      volumeAll: t.volumeAll + x.assetAmount,
+      tradesCount: t.tradesCount + 1,
+      lastTradeAt: ts,
+      lastBuyAt: x.side === "buy" ? ts : t.lastBuyAt,
+    });
+    await this.bumpAccount(x.trader, { tradesCount: 1 });
+    await this.bumpDaily(ts, t.asset, { volume: x.assetAmount, fees: x.feeAsset, trades: 1 });
+    await this.upsertCandles(t.address, ts, t.price, x.price, x.assetAmount);
+  }
+
+  private async setPhase(ev: Ev & { args: { token: Hex } }, phase: CoinPhase) {
+    const t = await this.tokens.get(lc(ev.args.token));
+    if (!t) return; // another launchpad's coin
+    this.tokens.put(t.address, { ...t, phase, progressBps: phase === "curve" ? t.progressBps : 10_000 });
+  }
+
+  /** Creates or updates a pair asset; ERC-20 details come from the database or, for a new token, from the sync. */
+  private async upsertAsset(address: Hex, ev: Ev, change: Partial<AssetRow>) {
+    const prev = await this.assets.get(address);
+    const meta = address === ZERO_ADDRESS ? NATIVE_META : ev.assetMeta;
+    if (!prev && !meta) throw new Error(`${ev.eventName} without asset details for ${address} in tx ${ev.txHash}`);
+    const base: AssetRow = prev ?? {
+      address,
+      symbol: meta!.symbol,
+      name: meta!.name,
+      decimals: meta!.decimals,
+      enabled: false,
+      phantomQuote: 0n,
+      graduationThreshold: 0n,
+      listedBlock: ev.block,
+      coins: 0,
+    };
+    this.assets.put(address, { ...base, ...change });
+  }
+
+  /** ETH as a pair asset: Pons launch config 0 (read at the latest block). */
+  async setEthAsset(e: EthEconomics, block: number) {
+    const prev = await this.assets.get(ZERO_ADDRESS);
+    this.assets.put(ZERO_ADDRESS, {
+      address: ZERO_ADDRESS,
+      ...NATIVE_META,
+      listedBlock: prev?.listedBlock ?? block,
+      coins: prev?.coins ?? 0,
+      ...e,
+    });
   }
 
   async apply(ev: Ev) {
     const ts = ev.ts;
     switch (ev.eventName) {
-      case "AssetSet": {
-        const address = lc(ev.args.asset);
-        const meta = address === NATIVE_ASSET ? NATIVE_META : ev.assetMeta;
-        if (!meta) throw new Error(`AssetSet without asset details for ${address} in tx ${ev.txHash}`);
-        const prev = await this.assets.get(address);
-        this.assets.put(address, {
-          address,
-          symbol: prev?.symbol ?? meta.symbol,
-          name: prev?.name ?? meta.name,
-          decimals: prev?.decimals ?? meta.decimals,
-          enabled: true,
-          startMcap: ev.args.startMcap,
-          startTick: Number(ev.args.startTick),
-          listedAt: prev?.listedAt ?? ts,
-          coins: prev?.coins ?? 0,
-        });
-        return;
-      }
+      /* ---------------- launcher */
 
-      case "AssetDisabled": {
-        const address = lc(ev.args.asset);
-        const prev = await this.assets.get(address);
-        if (prev) this.assets.put(address, { ...prev, enabled: false });
-        return;
-      }
-
-      case "CoinCreated": {
+      case "CoinLaunched": {
+        const L = ev.launch;
+        if (!L) throw new Error(`CoinLaunched without launch info in tx ${ev.txHash}`);
         const address = lc(ev.args.coin);
         const creator = lc(ev.args.creator);
-        const assetAddr = lc(ev.args.asset);
-        const poolId = lc(ev.args.poolId);
-        const startTick = Number(ev.args.startTick);
-        const coinIs0 = coinIsCurrency0(address, assetAddr);
-        const startPrice = priceX18FromSqrt(openingSqrtPrice(startTick, coinIs0), coinIs0);
-        // Only the mint to the locker precedes this event; the creator's first buy follows it (Swap, Transfer).
+        const assetAddr = lc(ev.args.pairToken);
+        const curve = lc(ev.args.curve);
+        const vault = lc(ev.args.vault);
+        const poolId = ponsPoolId(address, assetAddr, L.poolFee, L.tickSpacing);
+        const startPrice = curvePriceX18(L.phantomQuote, L.supply);
+        const meta = parseMeta(L);
+        // The sync moves CoinLaunched ahead of the rest of its transaction: the supply mint to the curve and the
+        // creator's first buy (Transfer, CurveBuy) are emitted before it and are applied after it.
         this.tokens.put(address, {
           address,
-          name: ev.args.name,
-          symbol: ev.args.symbol,
+          name: L.name,
+          symbol: L.symbol,
           creator,
           createdAt: ts,
           createdBlock: ev.block,
           createdTx: ev.txHash,
           asset: assetAddr,
+          curve,
+          vault,
           poolId,
-          coinIs0,
-          startTick,
+          coinIs0: coinIsCurrency0(address, assetAddr),
+          phase: "curve",
+          phantomQuote: L.phantomQuote,
+          graduationThreshold: L.graduationThreshold,
+          reservedTokens: L.reservedTokens,
+          supply: L.supply,
+          feeBps: L.feeBps,
+          taxBps: L.taxBps,
+          quoteReserve: L.phantomQuote,
+          tokenReserve: L.supply,
+          progressBps: 0,
           startPrice,
-          metadataUri: ev.args.metadataURI,
-          description: null,
-          image: null,
-          x: null,
-          telegram: null,
-          website: null,
-          metaPending: true,
-          metaAttempts: 0,
-          liquidity: 0n,
+          logo: L.logo,
+          ...meta,
           price: startPrice,
-          mcap: mcapFromPriceX18(startPrice),
+          mcap: mcapOf(startPrice, L.supply),
           volumeAll: 0n,
           tradesCount: 0,
           holdersCount: 0,
@@ -333,7 +507,10 @@ export class Batch {
           creatorFeesAccrued: 0n,
           creatorFeesClaimed: 0n,
           coinFeesCreator: 0n,
-          coinFeesProtocol: 0n,
+          feeRecipient: vault,
+          pendingRecipient: null,
+          pendingEffectiveAt: null,
+          pendingExpiresAt: null,
         });
         this.pools.put(poolId, { poolId, token: address });
         const a = await this.assets.get(assetAddr);
@@ -343,58 +520,163 @@ export class Batch {
         return;
       }
 
-      case "LiquidityLocked": {
-        const address = lc(ev.args.coin);
-        const t = await this.mustToken(address, ev);
-        this.tokens.put(address, { ...t, liquidity: ev.args.liquidity });
+      /* ---------------- curve */
+
+      // quoteIn = quote actually spent (fees included, refund excluded); fee includes the snipe tax.
+      case "CurveBuy": {
+        const t = await this.mustToken(ev.coin, ev);
+        const { quoteIn, tokensOut, fee, tax } = ev.args;
+        const next = applyCurveBuy(this.curveState(t), quoteIn, tokensOut, fee, tax);
+        const progress = curveProgressBps(next.tokenReserve, t.supply, t.reservedTokens);
+        await this.recordTrade(
+          t,
+          ev,
+          {
+            trader: lc(ev.args.recipient),
+            side: "buy",
+            venue: "curve",
+            assetAmount: quoteIn,
+            tokenAmount: tokensOut,
+            feeAsset: fee + tax,
+            price: curvePriceX18(next.quoteReserve, next.tokenReserve),
+          },
+          {
+            quoteReserve: next.quoteReserve,
+            tokenReserve: next.tokenReserve,
+            progressBps: progress,
+            // The allocation is sold out: the curve takes no more buys or sells. Pons graduates in the same buy unless
+            // that call fails (AutoGraduationFailed); then anyone can finish it, and LaunchSwept follows later.
+            phase: progress >= 10_000 ? "graduating" : t.phase,
+          },
+        );
         return;
       }
 
-      // Asset side of collected pool fees, credited to pull balances 60/40 on the launchpad.
-      case "FeesDeposited": {
-        const address = lc(ev.args.coin);
-        const t = await this.mustToken(address, ev);
-        this.tokens.put(address, { ...t, creatorFeesAccrued: t.creatorFeesAccrued + ev.args.creatorAmount });
+      // quoteOut is net of the fee and the creator tax.
+      case "CurveSell": {
+        const t = await this.mustToken(ev.coin, ev);
+        const { tokensIn, quoteOut, fee, tax } = ev.args;
+        const next = applyCurveSell(this.curveState(t), tokensIn, quoteOut, fee, tax);
+        await this.recordTrade(
+          t,
+          ev,
+          {
+            trader: lc(ev.args.seller),
+            side: "sell",
+            venue: "curve",
+            assetAmount: quoteOut,
+            tokenAmount: tokensIn,
+            feeAsset: fee + tax,
+            price: curvePriceX18(next.quoteReserve, next.tokenReserve),
+          },
+          {
+            quoteReserve: next.quoteReserve,
+            tokenReserve: next.tokenReserve,
+            progressBps: curveProgressBps(next.tokenReserve, t.supply, t.reservedTokens),
+          },
+        );
         return;
       }
 
-      case "CreatorFeesClaimed": {
-        const address = lc(ev.args.coin);
-        const t = await this.mustToken(address, ev);
-        this.tokens.put(address, { ...t, creatorFeesClaimed: t.creatorFeesClaimed + ev.args.amount });
-        return;
-      }
+      /* ---------------- Pons factory */
 
-      case "CreatorTransferred": {
-        const address = lc(ev.args.coin);
-        const t = await this.mustToken(address, ev);
-        this.tokens.put(address, { ...t, creator: lc(ev.args.to) });
-        return;
-      }
+      case "LaunchSwept":
+        return this.setPhase(ev, "graduating");
+      case "PoolGraduated":
+        return this.setPhase(ev, "pool");
+      case "LaunchGraduationRescued":
+        return this.setPhase(ev, "rescued");
 
-      case "ProtocolFeesClaimed":
-        await this.bumpDaily(ts, lc(ev.args.asset), { protocolClaimed: ev.args.amount });
-        return;
-
-      // Locker fee collection: the asset part is credited by FeesDeposited, so only the coin side is recorded here.
-      case "FeesCollected": {
-        const { coinToCreator, coinToProtocol } = ev.args;
-        if (coinToCreator === 0n && coinToProtocol === 0n) return;
-        const address = lc(ev.args.coin);
-        const t = await this.mustToken(address, ev);
-        this.tokens.put(address, {
+      case "CreatorFeeRecipientChangeProposed": {
+        const t = await this.tokens.get(lc(ev.args.token));
+        if (!t) return;
+        this.tokens.put(t.address, {
           ...t,
-          coinFeesCreator: t.coinFeesCreator + coinToCreator,
-          coinFeesProtocol: t.coinFeesProtocol + coinToProtocol,
+          pendingRecipient: lc(ev.args.proposedRecipient),
+          pendingEffectiveAt: Number(ev.args.effectiveAt),
+          pendingExpiresAt: Number(ev.args.expiresAt),
         });
         return;
       }
 
-      // Holder balances of every coin.
+      case "CreatorFeeRecipientChangeCancelled": {
+        const t = await this.tokens.get(lc(ev.args.token));
+        if (!t) return;
+        this.tokens.put(t.address, { ...t, pendingRecipient: null, pendingEffectiveAt: null, pendingExpiresAt: null });
+        return;
+      }
+
+      // Executing a matured override emits only this event; a creator transfer would leave the override pending.
+      case "CreatorFeeRecipientUpdated": {
+        const t = await this.tokens.get(lc(ev.args.token));
+        if (!t) return;
+        const to = lc(ev.args.newRecipient);
+        const executed = t.pendingRecipient === to;
+        this.tokens.put(t.address, {
+          ...t,
+          feeRecipient: to,
+          ...(executed ? { pendingRecipient: null, pendingEffectiveAt: null, pendingExpiresAt: null } : {}),
+        });
+        return;
+      }
+
+      case "PairTokenEconomicsUpdated":
+        return this.upsertAsset(lc(ev.args.pairToken), ev, {
+          phantomQuote: ev.args.phantomQuote,
+          graduationThreshold: ev.args.graduationThreshold,
+          decimals: Number(ev.args.decimals),
+        });
+
+      case "PairTokenApprovalUpdated":
+        return this.upsertAsset(lc(ev.args.pairToken), ev, { enabled: ev.args.approved });
+
+      case "LaunchConfigUpdated":
+        if (ev.args.id !== 0n || !ev.ethEconomics) return;
+        return this.upsertAsset(ZERO_ADDRESS, ev, ev.ethEconomics);
+
+      /* ---------------- fee vault */
+
+      // Every arrival is split 60/40: pair-asset shares are the creator fees; coin-side shares are valued at the coin price.
+      case "FeesSplit": {
+        const t = await this.mustToken(ev.coin, ev);
+        const a = lc(ev.args.asset);
+        const { creatorAmount, treasuryAmount } = ev.args;
+        if (a === t.asset) {
+          this.tokens.put(t.address, { ...t, creatorFeesAccrued: t.creatorFeesAccrued + creatorAmount });
+          await this.bumpDaily(ts, t.asset, { creatorFees: creatorAmount, protocolFees: treasuryAmount });
+        } else if (a === t.address) {
+          this.tokens.put(t.address, { ...t, coinFeesCreator: t.coinFeesCreator + creatorAmount });
+          await this.bumpDaily(ts, t.asset, {
+            creatorFees: coinValue(creatorAmount, t.price),
+            protocolFees: coinValue(treasuryAmount, t.price),
+          });
+        } else {
+          // ETH reaching the vault of an ERC-20 pair (Pons rescue paths): booked under ETH.
+          await this.bumpDaily(ts, a, { creatorFees: creatorAmount, protocolFees: treasuryAmount });
+        }
+        return;
+      }
+
+      case "CreatorPaid": {
+        const t = await this.mustToken(ev.coin, ev);
+        if (lc(ev.args.asset) !== t.asset) return;
+        this.tokens.put(t.address, { ...t, creatorFeesClaimed: t.creatorFeesClaimed + ev.args.amount });
+        return;
+      }
+
+      case "CreatorTransferred": {
+        const t = await this.mustToken(ev.coin, ev);
+        this.tokens.put(t.address, { ...t, creator: lc(ev.args.to) });
+        return;
+      }
+
+      /* ---------------- coin */
+
       case "Transfer": {
         const { value } = ev.args;
         if (value === 0n) return;
-        const tokenAddr = lc(ev.address);
+        const tokenAddr = ev.coin ?? lc(ev.address);
+        const t = await this.tokens.get(tokenAddr);
         const from = lc(ev.args.from);
         const to = lc(ev.args.to);
         let delta = 0;
@@ -403,80 +685,89 @@ export class Batch {
           const prev = (await this.holders.get(key))?.balance ?? 0n;
           const next = prev + change;
           this.holders.put(key, { token: tokenAddr, account: acct, balance: next });
-          if (isCountedHolder(acct)) {
+          if (isCountedHolder(acct, t)) {
             if (prev <= 0n && next > 0n) delta++;
             else if (prev > 0n && next <= 0n) delta--;
           }
         };
         if (from !== ZERO_ADDRESS) await move(from, -value);
         if (to !== ZERO_ADDRESS) await move(to, value);
-        // The constructor mint is seen before CoinCreated (row missing); it only moves zero → locker, never counted.
-        const t = delta !== 0 ? await this.tokens.get(tokenAddr) : undefined;
-        if (t) this.tokens.put(tokenAddr, { ...t, holdersCount: t.holdersCount + delta });
+        if (t && delta !== 0) this.tokens.put(tokenAddr, { ...t, holdersCount: t.holdersCount + delta });
         return;
       }
 
+      /* ---------------- graduated pool */
+
       /**
-       * Uniswap v4 swaps in the coins' pools. Amounts are the swapper's deltas: negative = paid by the swapper, so a
-       * buy has a positive coin delta. feeAsset: buy → assetIn · fee / 1e6; sell → assetOut · fee / (1e6 − fee)
-       * (the coin fee valued at the execution price). trader = transaction.from (routers swap on users' behalf).
+       * Uniswap v4 swaps in the coins' Pons pools. Amounts are the swapper's deltas before the hook's cut
+       * (negative = paid by the swapper, so a buy has a positive coin delta). The Pons hook then takes its fee and the
+       * creator tax from the unspecified currency (HookFeeCollected): out of the output on exact-in swaps, on top of
+       * the input on exact-out swaps. Amounts recorded are what the trader actually paid / received; a fee taken in
+       * coins is valued at the trade's own price. Swaps by the hook itself (fee conversion) only move the price.
+       * trader = transaction.from (routers swap on users' behalf).
        */
       case "Swap": {
         const p = await this.pools.get(lc(ev.args.id));
         if (!p) return;
         const t = await this.tokens.get(p.token);
         if (!t) return;
-        const { amount0, amount1, sqrtPriceX96, fee } = ev.args;
+        const { amount0, amount1, sqrtPriceX96 } = ev.args;
+        const price = sqrtPriceX96 > 0n ? priceX18FromSqrt(sqrtPriceX96, t.coinIs0) : t.price;
+
+        if (lc(ev.args.sender) === MEME_HOOK) {
+          this.tokens.put(t.address, { ...t, price, mcap: mcapOf(price, t.supply) });
+          await this.upsertCandles(t.address, ev.ts, t.price, price, 0n, 0);
+          return;
+        }
+
         const coinDelta = t.coinIs0 ? amount0 : amount1;
         const assetDelta = t.coinIs0 ? amount1 : amount0;
-        const assetAmount = abs(assetDelta);
-        const tokenAmount = abs(coinDelta);
-        if (assetAmount === 0n && tokenAmount === 0n) return;
+        const grossAsset = abs(assetDelta);
+        const grossCoin = abs(coinDelta);
+        if (grossAsset === 0n && grossCoin === 0n) return;
         if (!ev.txFrom) throw new Error(`Swap without transaction sender in tx ${ev.txHash}`);
-
         const isBuy = coinDelta > 0n;
-        const feePips = BigInt(fee);
-        const feeAsset = isBuy
-          ? (assetAmount * feePips) / POOL_FEE_PIPS
-          : feePips < POOL_FEE_PIPS
-            ? (assetAmount * feePips) / (POOL_FEE_PIPS - feePips)
-            : 0n;
-        const price = sqrtPriceX96 > 0n ? priceX18FromSqrt(sqrtPriceX96, t.coinIs0) : t.price;
-        const trader = ev.txFrom;
 
-        this.trades.push({
-          id: `${ev.txHash}-${ev.index}`,
-          token: t.address,
-          asset: t.asset,
-          trader,
+        let assetAmount = grossAsset;
+        let tokenAmount = grossCoin;
+        let feeAsset = 0n;
+        const hf = ev.hookFee;
+        const cut = hf ? hf.fee + hf.tax : 0n;
+        if (hf && cut > 0n) {
+          if (hf.currency === t.asset) {
+            feeAsset = cut;
+            assetAmount = isBuy ? grossAsset + cut : grossAsset > cut ? grossAsset - cut : 0n;
+          } else {
+            feeAsset = grossCoin > 0n ? (cut * grossAsset) / grossCoin : 0n;
+            tokenAmount = isBuy ? (grossCoin > cut ? grossCoin - cut : 0n) : grossCoin + cut;
+          }
+        }
+
+        await this.recordTrade(t, ev, {
+          trader: ev.txFrom,
           side: isBuy ? "buy" : "sell",
+          venue: "pool",
           assetAmount,
           tokenAmount,
           feeAsset,
           price,
-          txHash: ev.txHash,
-          blockNumber: ev.block,
-          logIndex: ev.index,
-          timestamp: ts,
         });
-        this.tokens.put(t.address, {
-          ...t,
-          price,
-          mcap: mcapFromPriceX18(price),
-          volumeAll: t.volumeAll + assetAmount,
-          tradesCount: t.tradesCount + 1,
-          lastTradeAt: ts,
-          lastBuyAt: isBuy ? ts : t.lastBuyAt,
-        });
-        await this.bumpAccount(trader, { tradesCount: 1 });
-        await this.bumpDaily(ts, t.asset, { volume: assetAmount, fees: feeAsset, trades: 1 });
-        await this.upsertCandles(t.address, ts, t.price, price, assetAmount);
         return;
       }
 
       default:
-        return; // OwnershipTransferred, TreasuryUpdated, CreationPausedSet, … — not indexed
+        return;
     }
+  }
+
+  private curveState(t: TokenRow) {
+    return {
+      quoteReserve: t.quoteReserve,
+      tokenReserve: t.tokenReserve,
+      reserved: t.reservedTokens,
+      feeBps: BigInt(t.feeBps),
+      taxBps: BigInt(t.taxBps),
+    };
   }
 
   /** Writes every changed row. Run inside the sync transaction. */
@@ -504,3 +795,4 @@ async function upsert<T extends PgTable>(db: IxDb, table: T, rows: T["$inferInse
     await db.insert(table).values(part).onConflictDoUpdate({ target, set });
   }
 }
+

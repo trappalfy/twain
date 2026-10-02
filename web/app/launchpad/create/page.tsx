@@ -6,7 +6,7 @@ import { Button, Card } from "@/components/ui";
 
 export const metadata: Metadata = {
   title: "Launch coin",
-  description: `Launch a coin paired with any asset on Robinhood Chain: ${PARAMS.supply} supply, all of it in a Uniswap pool from block one, liquidity locked forever.`,
+  description: `Launch a coin paired with ETH or a tokenized stock on Robinhood Chain: ${PARAMS.supply} supply, a launch curve first, then a Uniswap pool with liquidity locked forever.`,
 };
 
 const one = (v: string | string[] | undefined) => (Array.isArray(v) ? v[0] : v);

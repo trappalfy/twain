@@ -1,25 +1,37 @@
 /**
  * Building blocks for docs MDX (content/docs/*.mdx). Server components only.
- * Protocol numbers come from @twain/shared — never typed in by hand here.
+ * Protocol numbers come from @twain/shared or are computed here from it — never typed into the MDX by hand.
  */
 import {
+  BASIS_POINTS,
+  CREATOR_FEE_SHARE,
+  CREATOR_TAX_BPS,
+  type CurveState,
   EXPLORER_URL,
   PARAMS,
-  POOL_FEE_PIPS,
-  POOL_LP_FEE,
+  PONS_FEE_BPS,
+  PONS_POOL_FEE,
+  PONS_PROTOCOL_SHARE_BPS,
+  PONS_TICK_SPACING,
+  PONS_V2,
+  PROTOCOL_FEE_SHARE,
   TOTAL_SUPPLY,
+  TOTAL_SUPPLY_WHOLE,
   UNISWAP_V4,
+  VAULT_SHARE_BPS,
   WAD,
+  applyCurveBuy,
+  curvePriceX18,
   explorerAddress,
   formatEth,
   formatTokens,
-  mcapFromPriceX18,
-  quoteFromStart,
-  splitFee,
-  startPriceX18,
+  quoteCurveBuy,
+  reservedTokens,
+  snipeTaxBps,
 } from "@twain/shared";
 import { ArrowUpRight, ChevronDown } from "lucide-react";
 import Image from "next/image";
+import Link from "next/link";
 import type { ReactNode } from "react";
 import { zeroAddress } from "viem";
 import { CopyButton } from "@/components/common/CopyButton";
@@ -118,71 +130,204 @@ export function QuestionList({ children }: { children: ReactNode }) {
 
 /* ------------------------------------------------------------------ protocol numbers */
 
-const coins = (units: bigint) => `${formatTokens(units)} coins`;
+/**
+ * Pons V2 terms behind the ETH examples, as the factory had them on 2026-10-02 (launch config 0 for an ETH pair:
+ * phantomQuote 1.68 ETH, graduationThreshold 4.2 ETH; snipeTaxStartBps 9,900 over snipeTaxSeconds 3). Pons can change
+ * them for new launches; a coin keeps the terms it launched with, and the Create page reads the live ones.
+ */
+const ETH_PHANTOM = (168n * WAD) / 100n;
+const ETH_THRESHOLD = (42n * WAD) / 10n;
+const SNIPE_START_BPS = 9_900n;
+const SNIPE_SECONDS = 3n;
 
-/** ETH's start tick at the default start market cap (2.73 ETH, rounded down to the pool's price grid). */
-const ETH_START_TICK = -197_200;
+/** Pons V2 launch locker: `locker()` of the factory (read onchain 2026-10-02). */
+const PONS_LAUNCH_LOCKER = "0x267444D099b10fB5Ed7c3Cc7B7c767AdcA574952";
+
+const pct = (bps: bigint) => `${Number(bps) / 100}%`;
+const shareOf = (part: bigint, whole: bigint) => `${(Number((part * 1_000_000n) / whole) / 10_000).toFixed(1)}%`;
+const coins = (units: bigint) => `${formatTokens(units)} coins`;
+/** Whole-supply market cap at the curve's current price, in the asset's smallest units. */
+const mcapOf = (quoteReserve: bigint, tokenReserve: bigint) => (curvePriceX18(quoteReserve, tokenReserve) * TOTAL_SUPPLY_WHOLE) / WAD;
+
+const ETH_RESERVED = reservedTokens(TOTAL_SUPPLY, ETH_PHANTOM, ETH_THRESHOLD);
+const ETH_SELLABLE = TOTAL_SUPPLY - ETH_RESERVED;
+const ETH_CURVE: CurveState = {
+  quoteReserve: ETH_PHANTOM,
+  tokenReserve: TOTAL_SUPPLY,
+  reserved: ETH_RESERVED,
+  feeBps: PONS_FEE_BPS,
+  taxBps: CREATOR_TAX_BPS,
+};
+/** When the allocation is sold out the curve holds phantom + threshold against the reserved coins. */
+const ETH_GRAD_MCAP = mcapOf(ETH_PHANTOM + ETH_THRESHOLD, ETH_RESERVED);
+/** Coins that match the raised asset at the curve's last price (PonsV2LaunchFactory._poolTokenAmount); the rest is locked. */
+const ETH_POOL_COINS = (ETH_RESERVED * ETH_THRESHOLD) / (ETH_THRESHOLD + ETH_PHANTOM);
+const ETH_LOCKED_COINS = ETH_RESERVED - ETH_POOL_COINS;
+
+/** Snipe tax a buy pays `elapsed` whole seconds after launch, capped as the curve caps it (fee + tax + 1% stay payable). */
+const snipeAt = (elapsed: bigint) => {
+  const bps = snipeTaxBps(elapsed, SNIPE_START_BPS, SNIPE_SECONDS);
+  const max = BASIS_POINTS - PONS_FEE_BPS - CREATOR_TAX_BPS - 100n;
+  return bps > max ? max : bps;
+};
+
+/** Split of a trade's fees: what Pons keeps, what reaches the coin's vault, and the vault's 60/40 split. */
+function feeParts(volume: bigint) {
+  const total = (volume * (PONS_FEE_BPS + CREATOR_TAX_BPS)) / BASIS_POINTS;
+  const vault = (volume * VAULT_SHARE_BPS) / BASIS_POINTS;
+  const creator = (vault * CREATOR_FEE_SHARE) / 100n;
+  return { total, pons: total - vault, vault, creator, twain: vault - creator };
+}
+
+/** Numbers for docs prose, all derived from the shared constants above (`{NUM.vault}` in MDX). */
+export const NUM = {
+  /** Share of the Pons fee Pons keeps / passes to the coin's vault. */
+  ponsKeepsOfFee: pct(PONS_PROTOCOL_SHARE_BPS),
+  vaultGetsOfFee: pct(BASIS_POINTS - PONS_PROTOCOL_SHARE_BPS),
+  /** Shares of trading volume. */
+  ponsKeeps: pct((PONS_FEE_BPS * PONS_PROTOCOL_SHARE_BPS) / BASIS_POINTS),
+  vault: pct(VAULT_SHARE_BPS),
+  /** The vault's split. */
+  creatorSplit: `${CREATOR_FEE_SHARE}%`,
+  twainSplit: `${PROTOCOL_FEE_SHARE}%`,
+  /** ETH pair today. */
+  ethStartMcap: formatEth(ETH_PHANTOM),
+  ethRaise: formatEth(ETH_THRESHOLD),
+  ethGradMcap: formatEth(ETH_GRAD_MCAP),
+  ethSellable: shareOf(ETH_SELLABLE, TOTAL_SUPPLY),
+  ethReserved: shareOf(ETH_RESERVED, TOTAL_SUPPLY),
+  ethLocked: shareOf(ETH_LOCKED_COINS, TOTAL_SUPPLY),
+  /** Snipe tax in the launch second. */
+  snipeStart: pct(snipeAt(0n)),
+} as const;
 
 /** Every rule on one card (docs index). */
 export function RulesTable() {
   return (
     <Facts
       rows={[
-        ["Supply per coin", `${PARAMS.supply}, minted once`],
+        ["Supply per coin", `${PARAMS.supply}, minted once, all of it to the launch curve`],
         ["Presale, team share, allocations", "None"],
-        ["Where it trades", "Its own Uniswap v4 pool, from the launch transaction on"],
-        ["Pool pair", "The coin and the asset its creator picked"],
-        ["Liquidity", "The whole supply, locked forever"],
-        ["Price", "x · y = k from the asset's start market cap"],
-        ["Pool fee", `${PARAMS.poolFeePct} per trade: ${PARAMS.creatorFeePct} creator, ${PARAMS.protocolFeePct} protocol`],
-        ["First buy", "Optional, by the creator, in the launch transaction"],
-        ["Launch fee", `${PARAMS.launchFeeEth} ETH, gas only`],
+        ["Launched through", "twain's launcher, on the Pons V2 launch factory"],
+        ["Pair", "ETH or an asset Pons accepts, picked at launch, fixed for good"],
+        ["First", "A launch curve: x · y = k from the pair's start market cap"],
+        ["Then", "A Uniswap v4 pool, its liquidity locked forever"],
+        ["Fee per trade", `${PARAMS.tradeFeePct}: ${PARAMS.ponsFeePct} Pons fee + ${PARAMS.creatorTaxPct} creator tax`],
+        ["Creator earns", `${PARAMS.creatorEarnsPct} of trading volume, in the pair asset`],
+        ["Snipe tax", `On buys in the first ${PARAMS.snipeWindow}, falling to zero`],
+        ["First buy", "Optional, by the creator, in the launch transaction, no snipe tax"],
+        ["Launch fee", "Pons' fee in ETH, shown in the form before you sign"],
       ]}
     />
   );
 }
 
-/** What a buy does to price and market cap, for a coin paired with ETH (start market cap ≈ 2.73 ETH). */
-export function PriceTable() {
-  const startMcap = mcapFromPriceX18(startPriceX18(ETH_START_TICK));
-  const fee = (x: bigint) => (x * BigInt(POOL_LP_FEE) + POOL_FEE_PIPS - 1n) / POOL_FEE_PIPS;
-  const rows = [WAD / 10n, WAD, 5n * WAD, 20n * WAD].map((spent) => {
-    const out = quoteFromStart(ETH_START_TICK, spent);
-    const vAsset = startMcap + spent - fee(spent);
-    // x·y = k with (start mcap, supply): market cap = vAsset² / start mcap.
-    const mcap = (vAsset * vAsset) / startMcap;
-    const share = Number((out * 10_000n) / TOTAL_SUPPLY) / 100;
-    return [formatEth(spent), `${coins(out)} (${share.toFixed(1)}%)`, `≈ ${formatEth(mcap)}`];
-  });
-  return <Table head={["First buy into a fresh ETH pair", "Coins out", "Market cap after"]} rows={rows} />;
+/** The launch curve of a coin paired with ETH, on today's Pons terms. */
+export function CurveFacts() {
+  return (
+    <Facts
+      rows={[
+        ["Start market cap", `${NUM.ethStartMcap} for the whole supply`],
+        ["For sale on the curve", `${coins(ETH_SELLABLE)} (${NUM.ethSellable} of supply)`],
+        ["Kept back for the pool", `${coins(ETH_RESERVED)} (${NUM.ethReserved})`],
+        ["The curve completes when it has raised", `${NUM.ethRaise}, after fees`],
+        ["Market cap at that point", `≈ ${NUM.ethGradMcap}`],
+        ["Fee per trade", PARAMS.tradeFeePct],
+      ]}
+    />
+  );
 }
 
-/** What every pool looks like at launch. */
+/** What one buy does to a fresh ETH curve: coins out, share of supply, market cap after. */
+export function FirstBuyTable() {
+  const row = (quoteIn: bigint, label?: string) => {
+    const q = quoteCurveBuy(ETH_CURVE, quoteIn);
+    const after = applyCurveBuy(ETH_CURVE, q.spent, q.tokensOut, q.fee + q.snipeTax, q.tax);
+    return [label ?? formatEth(quoteIn), coins(q.tokensOut), shareOf(q.tokensOut, TOTAL_SUPPLY), `≈ ${formatEth(mcapOf(after.quoteReserve, after.tokenReserve))}`];
+  };
+  // Asking for more than the curve holds buys the whole allocation; the curve refunds the rest.
+  const all = quoteCurveBuy(ETH_CURVE, 2n * ETH_THRESHOLD);
+  return (
+    <Table
+      head={["First buy into a fresh ETH curve", "Coins out", "Share of supply", "Market cap after"]}
+      rows={[
+        row(WAD / 10n),
+        row(WAD / 2n),
+        row(WAD),
+        row(2n * WAD),
+        row(all.spent, `${formatEth(all.spent)}: the whole allocation`),
+      ]}
+    />
+  );
+}
+
+/** The snipe tax by whole seconds since the launch transaction's block. */
+export function SnipeTaxTable() {
+  const rows: ReactNode[][] = [];
+  for (let s = 0n; s <= SNIPE_SECONDS; s++) {
+    const label = s === 0n ? "In the launch second" : s === SNIPE_SECONDS ? `${s} seconds later and after` : `${s} second${s === 1n ? "" : "s"} later`;
+    const bps = snipeAt(s);
+    rows.push([label, bps === 0n ? "None" : `${pct(bps)} of the buy`]);
+  }
+  return <Table head={["A buy that lands", "Snipe tax, on top of the fees"]} rows={rows} />;
+}
+
+/** What a graduating ETH curve puts into its Uniswap pool. */
+export function GraduationFacts() {
+  return (
+    <Facts
+      rows={[
+        ["Asset into the pool", `${NUM.ethRaise}: everything the curve raised`],
+        ["Coins into the pool", `${coins(ETH_POOL_COINS)} (${shareOf(ETH_POOL_COINS, TOTAL_SUPPLY)} of supply)`],
+        ["Coins locked outside the pool", `${coins(ETH_LOCKED_COINS)} (${NUM.ethLocked})`],
+        ["Pool opens at", `The curve's last price, ≈ ${NUM.ethGradMcap} market cap`],
+        ["Position", "Full range, minted to Pons' launch locker"],
+      ]}
+    />
+  );
+}
+
+/** What every graduated pool looks like. */
 export function PoolParams() {
   return (
     <Facts
       rows={[
         ["Venue", "Uniswap v4 on Robinhood Chain"],
-        ["Pair", "Coin / the asset picked at launch"],
-        ["Liquidity", `${PARAMS.supply} coins, one position from the start price to the end of the range`],
-        ["Asset in the pool at launch", "None: buyers bring it"],
-        ["Pool fee", `${PARAMS.poolFeePct} per swap, fixed`],
-        ["Hook", "None: a plain pool any router can trade"],
-        ["Who opens the pool", "The launchpad, in the launch transaction"],
+        ["Pair", "The coin and the asset picked at launch"],
+        ["Liquidity", "One full-range position, locked forever"],
+        ["Hook", `The Pons meme hook, which charges the ${PARAMS.tradeFeePct} fee on every swap`],
+        ["Pool fee to liquidity providers", PONS_POOL_FEE === 0 ? "None" : `${PONS_POOL_FEE / 10_000}%`],
+        ["Tick spacing", String(PONS_TICK_SPACING)],
+        ["Who opens the pool", "Pons' factory, once the curve completes; anyone can trigger it"],
       ]}
     />
   );
 }
 
-/** Fee examples in a coin's paired asset (ETH here). */
+/** Where a trade's fees go, as shares of trading volume. */
+export function FeeSplit() {
+  return (
+    <Facts
+      rows={[
+        [`${PARAMS.ponsFeePct} Pons fee`, `${NUM.ponsKeepsOfFee} kept by Pons, ${NUM.vaultGetsOfFee} to the coin's fee vault`],
+        [`${PARAMS.creatorTaxPct} creator tax`, "All of it to the coin's fee vault"],
+        ["The fee vault receives", `${NUM.vault} of volume, split ${PARAMS.feeSplit}`],
+        ["The creator earns", `${PARAMS.creatorEarnsPct} of volume`],
+        ["twain earns", `${PARAMS.twainEarnsPct} of volume`],
+        ["Pons keeps", `${NUM.ponsKeeps} of volume`],
+      ]}
+    />
+  );
+}
+
+/** Fee examples in a coin's pair asset (ETH here). */
 export function FeeExamples() {
-  const fee = (volume: bigint) => splitFee((volume * BigInt(POOL_LP_FEE)) / POOL_FEE_PIPS);
   return (
     <Table
-      head={["Trading volume", "Pool fee", "Creator", "Protocol"]}
+      head={["Trading volume", `Fees (${PARAMS.tradeFeePct})`, "Creator", "twain", "Pons"]}
       rows={[WAD, 10n * WAD, 100n * WAD].map((v) => {
-        const f = fee(v);
-        return [formatEth(v), formatEth(f.creatorFee + f.protocolFee), formatEth(f.creatorFee), formatEth(f.protocolFee)];
+        const f = feeParts(v);
+        return [formatEth(v), formatEth(f.total), formatEth(f.creator), formatEth(f.twain), formatEth(f.pons)];
       })}
     />
   );
@@ -190,43 +335,75 @@ export function FeeExamples() {
 
 /* ------------------------------------------------------------------ contracts */
 
-type ContractRow = { name: string; role: string; address: string };
+type ContractRow = { name: string; role: string; address: string | null; note?: ReactNode };
 
-const LAUNCHPAD_CONTRACTS: ContractRow[] = [
+const TWAIN_CONTRACTS: ContractRow[] = [
   {
-    name: "Launchpad",
-    role: "Creates coins, opens their pools, keeps the asset list and the creator and protocol fee balances.",
-    address: config.deployment.launchpad,
+    name: "TwainLauncher",
+    role: "Launches every twain coin through Pons V2, creates its fee vault and makes the creator's optional first buy, all in one transaction. It holds no funds between transactions.",
+    address: config.deployment.launcher,
   },
   {
-    name: "LiquidityLocker",
-    role: "Owns every coin's pool position. It can only collect fees: there is no withdraw function.",
-    address: config.deployment.locker,
+    name: "TwainFeeVault",
+    role: `One per coin, created at launch: the coin's creator fee recipient at Pons. It splits what it receives ${PARAMS.feeSplit} between the creator and twain. No owner, no upgrade path.`,
+    address: null,
+    note: (
+      <>
+        Each coin has its own. The address is on the coin&apos;s page, in the About tab.{" "}
+        <Link href="/#explore-panel" className="text-accent-text underline underline-offset-4 hover:no-underline">
+          Find a coin
+        </Link>
+      </>
+    ),
+  },
+];
+
+const PONS_CONTRACTS: ContractRow[] = [
+  {
+    name: "Launch factory",
+    role: "Creates every coin and its launch curve, moves a completed curve into its Uniswap pool, and keeps the launch terms and the list of pair assets.",
+    address: PONS_V2.factory,
+  },
+  {
+    name: "Fee escrow",
+    role: "Holds the fees owed to each recipient, including every twain fee vault, until they are claimed.",
+    address: PONS_V2.feeEscrow,
+  },
+  {
+    name: "Meme hook",
+    role: "The hook on every graduated pool. It charges the fee on each swap and credits its parts.",
+    address: PONS_V2.memeHook,
+  },
+  {
+    name: "Launch locker",
+    role: "Holds every graduated pool position and the coins kept back from it. It has no withdraw function.",
+    address: PONS_LAUNCH_LOCKER,
   },
 ];
 
 const UNISWAP_CONTRACTS: ContractRow[] = [
-  { name: "PoolManager", role: "Holds every Uniswap v4 pool, including every coin's.", address: UNISWAP_V4.poolManager },
-  { name: "Universal Router", role: "Executes the site's swaps.", address: UNISWAP_V4.universalRouter },
+  { name: "PoolManager", role: "Holds every Uniswap v4 pool, including every graduated coin's.", address: UNISWAP_V4.poolManager },
+  { name: "Universal Router", role: "Executes the site's pool swaps.", address: UNISWAP_V4.universalRouter },
   { name: "V4 Quoter", role: "Quotes pool swaps before you sign.", address: UNISWAP_V4.quoter },
   { name: "StateView", role: "Reads pool prices and liquidity.", address: UNISWAP_V4.stateView },
-  { name: "Permit2", role: "Approvals for swaps that pay with a token (selling a coin, buying with a stock token).", address: UNISWAP_V4.permit2 },
+  { name: "Permit2", role: "Approvals for pool swaps that pay with a token (selling a coin, buying with a stock token).", address: UNISWAP_V4.permit2 },
 ];
 
-/** Contract addresses with Blockscout links. Launchpad addresses come from config (env). */
-export function ContractList({ group }: { group: "launchpad" | "uniswap" }) {
-  const rows = group === "launchpad" ? LAUNCHPAD_CONTRACTS : UNISWAP_CONTRACTS;
+const GROUPS = { twain: TWAIN_CONTRACTS, pons: PONS_CONTRACTS, uniswap: UNISWAP_CONTRACTS };
+
+/** Contract addresses with Blockscout links. The launcher address comes from config (env); "—" until it is deployed. */
+export function ContractList({ group }: { group: keyof typeof GROUPS }) {
   return (
     <ul className="my-6 divide-y divide-border rounded-card border border-border">
-      {rows.map((c) => {
-        const deployed = c.address.toLowerCase() !== zeroAddress;
+      {GROUPS[group].map((c) => {
+        const address = c.address && c.address.toLowerCase() !== zeroAddress ? c.address : null;
         return (
           <li key={c.name} className="flex flex-col gap-2 px-4 py-4 md:px-5">
             <div className="flex flex-wrap items-baseline justify-between gap-x-4 gap-y-1">
               <span className="text-base font-medium text-text">{c.name}</span>
-              {deployed && (
+              {address && (
                 <a
-                  href={explorerAddress(c.address)}
+                  href={explorerAddress(address)}
                   target="_blank"
                   rel="noreferrer"
                   className="inline-flex items-center gap-1 text-sm text-accent-text hover:underline underline-offset-4"
@@ -236,13 +413,15 @@ export function ContractList({ group }: { group: "launchpad" | "uniswap" }) {
               )}
             </div>
             <p className="text-sm text-muted">{c.role}</p>
-            {deployed ? (
+            {address ? (
               <div className="flex items-center gap-1">
-                <code className="break-all font-mono text-13 text-text">{c.address}</code>
-                <CopyButton value={c.address} label={`Copy ${c.name} address`} className="shrink-0" />
+                <code className="break-all font-mono text-13 text-text">{address}</code>
+                <CopyButton value={address} label={`Copy ${c.name} address`} className="shrink-0" />
               </div>
+            ) : c.note ? (
+              <p className="text-sm text-muted">{c.note}</p>
             ) : (
-              <p className="text-sm text-muted">Published here once the contracts are deployed.</p>
+              <p className="font-mono text-13 text-muted">—</p>
             )}
           </li>
         );

@@ -2,57 +2,78 @@
 
 import {
   COPY,
+  CREATOR_TAX_BPS,
+  LAUNCH_CONFIG_ID,
   NATIVE_ASSET,
-  PARAMS,
+  PONS_FEE_BPS,
+  PONS_V2,
   TOKEN_LIMITS,
+  TOTAL_SUPPLY,
   applySlippage,
   formatEth,
-  quoteFromStart,
+  quoteCurveBuy,
+  reservedTokens,
   type ListedAsset,
 } from "@twain/shared";
-import { launchpadAbi, tokenAbi } from "@twain/shared/abi";
+import { ponsFactoryAbi, tokenAbi, twainLauncherAbi } from "@twain/shared/abi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useQuery } from "@tanstack/react-query";
 import { Fuel, Globe } from "lucide-react";
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
+import { useEffect, useState } from "react";
 import { toast } from "sonner";
-import { formatUnits, maxUint256, parseEventLogs, parseUnits, toHex, zeroAddress, type Address } from "viem";
+import { formatUnits, maxUint256, parseEventLogs, parseUnits, zeroAddress, zeroHash, type Address, type Hex } from "viem";
 import { useAccount, useBalance, usePublicClient, useReadContract, useSwitchChain } from "wagmi";
-import { AssetIcon } from "@/components/common";
-import { Accordion, Button, Field, Input, Select, Textarea, TelegramIcon, XIcon } from "@/components/ui";
+import { Accordion, Button, Field, Input, Textarea, TelegramIcon, XIcon } from "@/components/ui";
 import { useAssets } from "@/lib/api";
 import { config } from "@/lib/config";
 import { isUserRejection, toFriendlyError } from "@/lib/errors";
 import { useTx } from "@/lib/tx";
 import { appChain } from "@/lib/wagmi";
+import { AssetPicker } from "./AssetPicker";
 import { DevBuyField } from "./DevBuyField";
 import { ImageField } from "./ImageField";
 import { TokenPreview } from "./TokenPreview";
-import { uploadMetadata } from "./upload";
 import { useImageUpload } from "./useImageUpload";
-import {
-  cleanTicker,
-  nameValid,
-  normalizeTelegram,
-  normalizeWebsite,
-  normalizeX,
-  utf8Length,
-  type TokenMetadata,
-} from "./validate";
+import { cleanTicker, nameValid, normalizeTelegram, normalizeWebsite, normalizeX, utf8Length } from "./validate";
 
-const LAUNCHPAD = config.deployment.launchpad;
-const LAUNCHPAD_SET = LAUNCHPAD.toLowerCase() !== zeroAddress;
+const LAUNCHER = config.deployment.launcher;
+const LAUNCHER_SET = LAUNCHER.toLowerCase() !== zeroAddress;
+const PONS = PONS_V2.factory as Address;
 
 /** Max button rounds down to 6 decimals. */
 const MAX_DECIMALS = 6;
-/** The first buy fills at the start price in the same transaction; the margin only covers preview rounding. */
+/** The first buy is the first trade on a fresh curve in the same transaction; the margin only covers rounding. */
 const FIRST_BUY_SLIPPAGE_BPS = 50;
 
-/** Worst-case placeholders for the gas estimate (longest name/ticker, CIDv1 URI). */
-const GAS_NAME = "x".repeat(TOKEN_LIMITS.nameMax);
-const GAS_SYMBOL = "X".repeat(TOKEN_LIMITS.symbolMax);
-const GAS_URI = `ipfs://b${"a".repeat(58)}`;
+/** Worst-case placeholders for the gas estimate (longest name/ticker/description, CIDv1 URI, long links). */
+const GAS_PARAMS = {
+  name: "x".repeat(TOKEN_LIMITS.nameMax),
+  symbol: "X".repeat(TOKEN_LIMITS.symbolMax),
+  logo: `ipfs://b${"a".repeat(58)}`,
+  description: "x".repeat(TOKEN_LIMITS.descriptionMax),
+  socials: {
+    twitter: `https://x.com/${"x".repeat(15)}`,
+    telegram: `https://t.me/${"x".repeat(32)}`,
+    discord: "",
+    website: `https://${"x".repeat(40)}.com`,
+    farcaster: "",
+  },
+};
+
+/** Coins the creator's first buy returns: the first trade on a fresh curve, exempt from the snipe tax. */
+function firstBuyOut(asset: ListedAsset, quoteIn: bigint): bigint {
+  if (quoteIn === 0n) return 0n;
+  const phantom = BigInt(asset.phantomQuote);
+  const curve = {
+    quoteReserve: phantom,
+    tokenReserve: TOTAL_SUPPLY,
+    reserved: reservedTokens(TOTAL_SUPPLY, phantom, BigInt(asset.graduationThreshold)),
+    feeBps: PONS_FEE_BPS,
+    taxBps: CREATOR_TAX_BPS,
+  };
+  return quoteCurveBuy(curve, quoteIn).tokensOut;
+}
 
 const parseAmount = (v: string, decimals: number): bigint | null => {
   if (!v || v === ".") return 0n;
@@ -63,9 +84,6 @@ const parseAmount = (v: string, decimals: number): bigint | null => {
   }
 };
 
-/** Random salt for the coin's CREATE2 address: unpredictable until the transaction lands. */
-const randomSalt = () => toHex(crypto.getRandomValues(new Uint8Array(32)));
-
 function useDebounced<T>(value: T, ms: number): T {
   const [v, setV] = useState(value);
   useEffect(() => {
@@ -75,7 +93,7 @@ function useDebounced<T>(value: T, ms: number): T {
   return v;
 }
 
-type Step = "idle" | "metadata" | "tx" | "done";
+type Step = "idle" | "tx" | "done";
 type ButtonState = { label: string; disabled?: boolean; loading?: boolean; onClick?: () => void };
 
 /** initialCoin / initialPair: ?coin= and ?pair= from the hero's pair card (read by the page on the server). */
@@ -99,8 +117,6 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
   const [devBuy, setDevBuy] = useState("");
   const [assetAddr, setAssetAddr] = useState<string | null>(null);
   const [step, setStep] = useState<Step>("idle");
-  const [metaError, setMetaError] = useState<string | null>(null);
-  const metaCache = useRef<{ key: string; uri: string } | null>(null);
 
   const connected = accountStatus === "connected" && !!address;
   const onChain = connected && chainId === appChain.id;
@@ -112,7 +128,7 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
   const xUrl = normalizeX(x);
   const tgUrl = normalizeTelegram(telegram);
   const webUrl = normalizeWebsite(website);
-  // ---- paired asset (owner-listed, enabled ones only)
+  // ---- paired asset (ETH + every ERC-20 Pons V2 accepts)
   const assetsQ = useAssets();
   const enabled = (assetsQ.data ?? []).filter((a) => a.enabled);
   const preferred = pairParam && pairParam !== "ANY" ? enabled.find((a) => a.symbol.toUpperCase() === pairParam) : undefined;
@@ -122,7 +138,7 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
 
   const devBuyAmount = parseAmount(devBuy, decimals);
   const devAmount = devBuyAmount ?? 0n;
-  const expected = devAmount > 0n && asset ? quoteFromStart(asset.startTick, devAmount) : 0n;
+  const expected = asset ? firstBuyOut(asset, devAmount) : 0n;
   const hasDetails = nameValid(name) && ticker.length > 0;
   const fieldsValid = !nameError && xUrl !== undefined && tgUrl !== undefined && webUrl !== undefined && devBuyAmount !== null;
 
@@ -141,46 +157,56 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
     address: (asset?.address ?? zeroAddress) as Address,
     abi: tokenAbi,
     functionName: "allowance",
-    args: [address ?? zeroAddress, LAUNCHPAD],
+    args: [address ?? zeroAddress, LAUNCHER],
     chainId: appChain.id,
-    query: { enabled: connected && !native && LAUNCHPAD_SET, refetchInterval: 15_000 },
+    query: { enabled: connected && !native && LAUNCHER_SET, refetchInterval: 15_000 },
   });
   const balance = native ? ethBalance : assetBalanceQ.data;
   const needsApproval = !native && devAmount > 0n && allowanceQ.data !== undefined && allowanceQ.data < devAmount;
   const pausedQ = useReadContract({
-    address: LAUNCHPAD,
-    abi: launchpadAbi,
-    functionName: "creationPaused",
+    address: LAUNCHER,
+    abi: twainLauncherAbi,
+    functionName: "paused",
     chainId: appChain.id,
-    query: { enabled: LAUNCHPAD_SET, refetchInterval: 30_000 },
+    query: { enabled: LAUNCHER_SET, refetchInterval: 30_000 },
   });
   const paused = pausedQ.data === true;
+  // Pons launch fee (paid in ETH with the launch) and the curve terms the launch pins (expectedEconomics)
+  const feeQ = useReadContract({
+    address: PONS,
+    abi: ponsFactoryAbi,
+    functionName: "launchFee",
+    chainId: appChain.id,
+    query: { refetchInterval: 60_000 },
+  });
+  const launchFee = feeQ.data;
+  const economicsQ = useReadContract({
+    address: PONS,
+    abi: ponsFactoryAbi,
+    functionName: "previewLaunchEconomics",
+    args: [LAUNCH_CONFIG_ID, (asset?.address ?? zeroAddress) as Address],
+    chainId: appChain.id,
+    query: { enabled: !!asset, refetchInterval: 60_000 },
+  });
+  const economics = economicsQ.data as Hex | undefined;
 
-  // Gas estimate: the ERC-20 first buy is left out until the launchpad may pull it (the call would revert).
+  // Gas estimate: the ERC-20 first buy is left out until the launcher may pull it (the call would revert).
   const gasAmount = useDebounced(needsApproval ? 0n : devAmount, 400);
   const gasQ = useQuery({
-    queryKey: ["twain", "create-gas", address, asset?.address, gasAmount.toString()],
-    enabled: !!publicClient && onChain && LAUNCHPAD_SET && !paused && !!asset && (native || balance === undefined || gasAmount <= balance),
+    queryKey: ["twain", "create-gas", address, asset?.address, gasAmount.toString(), launchFee?.toString()],
+    enabled:
+      !!publicClient && onChain && LAUNCHER_SET && !paused && !!asset && launchFee !== undefined &&
+      (native || balance === undefined || gasAmount <= balance),
     retry: false,
     staleTime: 30_000,
     queryFn: async () => {
       const [gas, gasPrice] = await Promise.all([
         publicClient!.estimateContractGas({
-          address: LAUNCHPAD,
-          abi: launchpadAbi,
-          functionName: "create",
-          args: [
-            {
-              name: GAS_NAME,
-              symbol: GAS_SYMBOL,
-              metadataURI: GAS_URI,
-              asset: asset!.address,
-              salt: randomSalt(),
-              assetIn: gasAmount,
-              minCoinsOut: 0n,
-            },
-          ],
-          value: native ? gasAmount : 0n,
+          address: LAUNCHER,
+          abi: twainLauncherAbi,
+          functionName: "launch",
+          args: [{ ...GAS_PARAMS, expectedEconomics: zeroHash }, asset!.address, gasAmount, 0n],
+          value: launchFee! + (native ? gasAmount : 0n),
           account: address!,
         }),
         publicClient!.getGasPrice(),
@@ -189,12 +215,13 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
     },
   });
   const gasCost = gasQ.data;
-  const notEnoughAsset = balance !== undefined && balance < devAmount + (native ? (gasCost ?? 0n) : 0n);
-  const notEnoughGas = !native && ethBalance !== undefined && gasCost !== undefined && ethBalance < gasCost;
+  const ethNeeded = (launchFee ?? 0n) + (gasCost ?? 0n);
+  const notEnoughAsset = balance !== undefined && balance < devAmount + (native ? ethNeeded : 0n);
+  const notEnoughGas = !native && ethBalance !== undefined && ethBalance < ethNeeded;
 
   const setMax = () => {
     if (balance === undefined) return;
-    let max = native ? balance - 2n * (gasCost ?? 0n) : balance;
+    let max = native ? balance - (launchFee ?? 0n) - 2n * (gasCost ?? 0n) : balance;
     if (max < 0n) max = 0n;
     const step = 10n ** BigInt(Math.max(0, decimals - MAX_DECIMALS));
     max = (max / step) * step;
@@ -209,7 +236,7 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
           address: asset.address,
           abi: tokenAbi,
           functionName: "approve",
-          args: [LAUNCHPAD, maxUint256],
+          args: [LAUNCHER, maxUint256],
           chainId: appChain.id,
         }),
       { pending: "Approving…", success: `${asset.symbol} approved` },
@@ -217,56 +244,27 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
     if (rc) void allowanceQ.refetch();
   };
 
-  // ---- launch
-  const metadata = (): TokenMetadata => ({
-    name: name.trim(),
-    symbol: ticker,
-    description: description.trim() || null,
-    image: image.state.status === "ready" ? image.state.uri : null,
-    x: xUrl ?? null,
-    telegram: tgUrl ?? null,
-    website: webUrl ?? null,
-  });
-
+  // ---- launch: one TwainLauncher transaction creates the coin on Pons V2 and makes the first buy
   const launch = async () => {
-    if (!onChain || !hasDetails || !fieldsValid || devBuyAmount === null || !asset) return;
-    setMetaError(null);
-    const meta = metadata();
-    const key = JSON.stringify(meta);
-    let uri = metaCache.current?.key === key ? metaCache.current.uri : null;
-    if (!uri) {
-      setStep("metadata");
-      try {
-        uri = (await uploadMetadata(meta)).uri;
-        metaCache.current = { key, uri };
-      } catch (err) {
-        setMetaError(err instanceof Error ? err.message : "Upload failed. Try again.");
-        setStep("idle");
-        return;
-      }
-    }
-
+    if (!onChain || !hasDetails || !fieldsValid || devBuyAmount === null || !asset || launchFee === undefined) return;
     setStep("tx");
-    // The first buy is the first trade in a pool opened in the same transaction, at the asset's start price.
-    const minCoinsOut = devBuyAmount > 0n ? applySlippage(quoteFromStart(asset.startTick, devBuyAmount), FIRST_BUY_SLIPPAGE_BPS) : 0n;
+    const minCoinsOut = devBuyAmount > 0n ? applySlippage(firstBuyOut(asset, devBuyAmount), FIRST_BUY_SLIPPAGE_BPS) : 0n;
+    const params = {
+      name: name.trim(),
+      symbol: ticker,
+      logo: image.state.status === "ready" ? image.state.uri : "",
+      description: description.trim(),
+      socials: { twitter: xUrl ?? "", telegram: tgUrl ?? "", discord: "", website: webUrl ?? "", farcaster: "" },
+      expectedEconomics: economics ?? zeroHash,
+    };
     const rc = await tx.run(
       () =>
         tx.writeContractAsync({
-          address: LAUNCHPAD,
-          abi: launchpadAbi,
-          functionName: "create",
-          args: [
-            {
-              name: meta.name,
-              symbol: meta.symbol,
-              metadataURI: uri,
-              asset: asset.address,
-              salt: randomSalt(),
-              assetIn: devBuyAmount,
-              minCoinsOut,
-            },
-          ],
-          value: native ? devBuyAmount : 0n,
+          address: LAUNCHER,
+          abi: twainLauncherAbi,
+          functionName: "launch",
+          args: [params, asset.address, devBuyAmount, minCoinsOut],
+          value: launchFee + (native ? devBuyAmount : 0n),
           chainId: appChain.id,
         }),
       { pending: "Launching…", success: COPY.create.success },
@@ -276,14 +274,13 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
       return;
     }
     setStep("done");
-    const created = parseEventLogs({ abi: launchpadAbi, eventName: "CoinCreated", logs: rc.logs }).find(
-      (l) => l.address.toLowerCase() === LAUNCHPAD.toLowerCase(),
+    const launched = parseEventLogs({ abi: twainLauncherAbi, eventName: "CoinLaunched", logs: rc.logs }).find(
+      (l) => l.address.toLowerCase() === LAUNCHER.toLowerCase(),
     );
-    router.push(created ? `/launchpad/${created.args.coin.toLowerCase()}` : "/profile");
+    router.push(launched ? `/launchpad/${launched.args.coin.toLowerCase()}` : "/profile");
   };
 
   const button: ButtonState = (() => {
-    if (step === "metadata") return { label: "Uploading…", loading: true };
     if (step === "tx") return tx.status === "pending" ? { label: "Launching…", loading: true } : { label: "Confirm in wallet", loading: true };
     if (step === "done") return { label: "Launching…", loading: true };
     if (accountStatus === "connecting" || accountStatus === "reconnecting") return { label: "Connect wallet", loading: true };
@@ -295,9 +292,11 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
         onClick: () =>
           switchChain({ chainId: appChain.id }, { onError: (e) => void (isUserRejection(e) || toast.error(toFriendlyError(e))) }),
       };
-    if (!LAUNCHPAD_SET) return { label: "Launches are not open yet", disabled: true };
+    if (!LAUNCHER_SET) return { label: "Launches are not open yet", disabled: true };
     if (paused) return { label: "New launches paused", disabled: true };
     if (!asset) return assetsQ.isPending ? { label: "Loading assets…", loading: true } : { label: "No asset open for launches", disabled: true };
+    if (launchFee === undefined)
+      return feeQ.isError ? { label: "Could not read the launch fee · Retry", onClick: () => void feeQ.refetch() } : { label: "Loading…", loading: true };
     if (!hasDetails) return { label: COPY.create.needDetails, disabled: true };
     if (!fieldsValid) return { label: "Check the highlighted fields", disabled: true };
     if (image.state.status === "uploading") return { label: "Uploading…", loading: true };
@@ -318,7 +317,6 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
       return tx.status === "confirm" || tx.status === "pending"
         ? { label: "Approving…", loading: true }
         : { label: `Approve ${asset.symbol}`, onClick: () => void approve() };
-    if (metaError) return { label: "Upload failed · Retry", onClick: () => void launch() };
     return { label: COPY.create.title, onClick: () => void launch() };
   })();
 
@@ -331,6 +329,7 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
     telegram: tgUrl ?? null,
     website: webUrl ?? null,
     asset: asset ?? null,
+    launchFee: launchFee ?? null,
   };
 
   return (
@@ -410,27 +409,16 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
           </div>
 
           <Field label="Paired asset" hint={COPY.create.pairedHelper}>
-            <Select
-              key={enabled.length > 0 ? "ready" : "loading"}
+            <AssetPicker
+              assets={enabled}
+              value={asset}
+              loading={assetsQ.isPending}
+              disabled={busy}
               defaultOpen={pairParam === "ANY" && enabled.length > 0}
-              aria-label="Paired asset"
-              value={asset?.address}
-              placeholder={assetsQ.isPending ? "Loading…" : "No asset open for launches"}
-              onChange={(v) => {
-                setAssetAddr(v);
+              onChange={(a) => {
+                setAssetAddr(a.address);
                 setDevBuy("");
               }}
-              options={enabled.map((a) => ({
-                value: a.address,
-                label: (
-                  <span className="flex items-center gap-2.5">
-                    <AssetIcon asset={a} size={20} />
-                    {a.symbol}
-                    {a.kind !== "native" && <span className="text-muted">{a.name}</span>}
-                  </span>
-                ),
-              }))}
-              className="h-12 w-full rounded-2xl"
             />
           </Field>
 
@@ -474,7 +462,11 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
 
           <div>
             <div className="flex items-center justify-between gap-4 text-13 text-muted">
-              <span>{needsApproval && asset ? COPY.create.approveHint(asset.symbol) : COPY.create.summary(PARAMS.launchFeeEth)}</span>
+              <span>
+                {needsApproval && asset
+                  ? COPY.create.approveHint(asset.symbol)
+                  : COPY.create.summary(launchFee !== undefined ? formatEth(launchFee, { unit: false }) : "…")}
+              </span>
               <span className="flex items-center gap-1.5 tabular" title="Estimated network fee">
                 <Fuel size={14} aria-hidden />
                 {gasCost !== undefined ? `≈ ${formatEth(gasCost)}` : "—"}
@@ -489,11 +481,6 @@ export function CreateForm({ initialCoin, initialPair }: { initialCoin?: string;
             >
               {button.label}
             </Button>
-            {metaError && step === "idle" && (
-              <p role="alert" className="mt-3 text-13 text-sell">
-                {metaError}
-              </p>
-            )}
           </div>
         </div>
       </div>

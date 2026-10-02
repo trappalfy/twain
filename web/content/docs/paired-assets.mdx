@@ -1,27 +1,29 @@
-import { Callout, Facts } from "@/components/docs/blocks";
+import { Callout, Facts, NUM } from "@/components/docs/blocks";
 
-Every coin trades against one asset: the one its creator picks at launch. Buyers pay in it, sellers receive it, and the coin's price and market cap are counted in it. The pair can't be changed later.
+Every coin trades against one asset: the one its creator picks at launch. Buyers pay in it, sellers receive it, and the coin's price, market cap and fees are counted in it. The pair can't be changed later.
 
 ## Which assets
 
-The launchpad keeps a list of assets that new coins can be paired with: native ETH, Robinhood's stock tokens, and other tokens on Robinhood Chain such as memecoins and stablecoins. The list is kept by the launchpad's owner, and it only shapes **future** launches: a coin that is already live keeps its pair, its pool and its liquidity whatever happens to the list.
+A coin can be paired with native ETH or with an ERC-20 token that Pons accepts as a pair asset. At the time of writing that is about 70 tokens: most of them Robinhood's stock tokens and ETFs, plus the USDG stablecoin, cbBTC, TAO, ORBIO and a few others. The [Create page](/launchpad/create) shows the current list.
 
-An asset joins the list only if it behaves like a plain token: no fee on transfer, no balance that changes by itself. A token that takes a cut on transfer can't be used at all: the launch transaction fails. A memecoin or other token also needs real liquidity of its own on Robinhood Chain, so that buyers can get it and its dollar price can be measured.
+Pons decides which assets it accepts, and its list only shapes **new** launches. A coin that is already live keeps its pair, its curve and its pool, whatever happens to the list later.
 
-## The start market cap
+Memecoins are not on Pons' list, so they can't be picked as a pair for now.
 
-Each asset on the list has one setting: the market cap a new coin starts at, written in the asset's own units. For ETH it is 2.73 ETH. For other assets it is set to roughly the same dollar value when the asset is listed.
+## Start market cap and curve size
+
+Pons sets two numbers for each pair asset, in that asset's own units: the market cap a new coin starts at, and how much its launch curve raises before the coin moves into Uniswap. For ETH today, a coin starts at a market cap of {NUM.ethStartMcap} and its curve raises {NUM.ethRaise}. Other assets get the same shape, sized in their own units. The Create page shows both numbers for every asset before you launch.
 
 <Facts
   rows={[
-    ["Set by", "The owner, per asset"],
+    ["Set by", "Pons, per pair asset"],
     ["Applies to", "Coins launched after it is set"],
-    ["Stored on the coin", "At launch, for good"],
-    ["Rounded", "Down to the pool's price grid, at most about 2%"],
+    ["Stored on the coin", "In its launch curve, at launch, for good"],
+    ["Shown", "On the Create page, before you sign"],
   ]}
 />
 
-Because the start price is in the asset's units, a coin's dollar value moves with its asset: if the asset falls 10%, so does the coin's market cap in dollars, before anyone trades the coin.
+Because the price is counted in the asset, a coin's dollar value moves with its asset: if the asset falls 10%, so does the coin's market cap in dollars, before anyone trades the coin.
 
 ## Stock tokens
 
@@ -31,12 +33,12 @@ Dollar prices of stock tokens on this site come from Robinhood's public price fe
 
 <Callout title="Who controls a stock token">
 
-A stock token's contract is run by its issuer, who can upgrade it and block addresses. If the issuer ever blocked the Uniswap PoolManager, every pool holding that token would stop trading, including the coins paired with it. See [Risks](/docs/risks).
+A stock token's contract is run by its issuer, who can upgrade it and block addresses. If the issuer ever blocked a contract a coin depends on, such as its launch curve or the Uniswap PoolManager, trading in that token would stop there, including for the coins paired with it. See [Risks](/docs/risks).
 
 </Callout>
 
-## Memecoins and other tokens
+## Other tokens
 
-Any other token on the list works the same way: a coin paired with a memecoin is bought with that memecoin, sold for it, and pays its creator's fee share in it. The coin's dollar value then moves with the memecoin, which is usually far more volatile than ETH or a stock.
+USDG, cbBTC, TAO, ORBIO and the other tokens on the list work the same way: a coin paired with one is bought with it, sold for it, and pays its fees in it. The coin's dollar value then moves with that token.
 
 Dollar prices of these tokens on this site come from GeckoTerminal, with DexScreener as a fallback; both read the tokens' own pools on Robinhood Chain.

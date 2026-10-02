@@ -1,4 +1,4 @@
-import { COPY, formatAsset, mcapFromPriceX18, PARAMS, shortAddress, type TokenDetail } from "@twain/shared";
+import { COPY, formatAsset, mcapFromPriceX18, PARAMS, PONS_V2, shortAddress, type TokenDetail } from "@twain/shared";
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { AddressLink, CopyButton } from "@/components/common";
@@ -6,13 +6,15 @@ import { config } from "@/lib/config";
 import { isZeroAddress } from "./links";
 
 export function AboutTab({ token }: { token: TokenDetail }) {
-  const { launchpad, locker } = config.deployment;
+  const { launcher } = config.deployment;
   const params: [string, ReactNode][] = [
     ["Paired with", `${token.asset.name} (${token.asset.symbol})`],
-    ["Total supply", `${PARAMS.supply} · no allocations, all of it in the pool`],
+    ["Total supply", `${PARAMS.supply} · no allocations`],
     ["Start market cap", formatAsset(mcapFromPriceX18(BigInt(token.startPriceX18)), token.asset)],
-    ["Pool fee", `${PARAMS.poolFeePct} of every trade · ${PARAMS.creatorFeePct} creator, ${PARAMS.protocolFeePct} protocol`],
-    ["Liquidity", "Locked forever"],
+    ["Launch curve", `Moves to Uniswap once it raises ${formatAsset(token.graduationThreshold, token.asset)}`],
+    ["Fee per trade", `${PARAMS.tradeFeePct}: ${PARAMS.ponsFeePct} Pons fee + ${PARAMS.creatorTaxPct} creator tax`],
+    ["Creator earns", `${PARAMS.creatorEarnsPct} of every trade's volume`],
+    ["Liquidity", "Locked forever in the Uniswap pool"],
   ];
   const contracts: [string, ReactNode][] = [
     ["Coin", <AddressLink key="t" address={token.address} kind="token" copy />],
@@ -20,8 +22,10 @@ export function AboutTab({ token }: { token: TokenDetail }) {
       ? []
       : ([["Asset", <AddressLink key="a" address={token.asset.address} kind="token" copy />]] as [string, ReactNode][])),
     ["Creator", <AddressLink key="c" address={token.creator} href={`/profile/${token.creator}`} copy />],
-    ["Launchpad", isZeroAddress(launchpad) ? "—" : <AddressLink key="l" address={launchpad} copy />],
-    ["Locker", isZeroAddress(locker) ? "—" : <AddressLink key="k" address={locker} copy />],
+    ["Launch curve", <AddressLink key="cv" address={token.curve} copy />],
+    ["Fee vault", <AddressLink key="v" address={token.vault} copy />],
+    ["twain launcher", isZeroAddress(launcher) ? "—" : <AddressLink key="l" address={launcher} copy />],
+    ["Pons V2 factory", <AddressLink key="pf" address={PONS_V2.factory} copy />],
   ];
   if (token.poolId)
     contracts.push([
@@ -46,7 +50,7 @@ export function AboutTab({ token }: { token: TokenDetail }) {
 
       <section>
         <h3 className="text-base font-semibold text-text">Parameters</h3>
-        <p className="mt-1 text-13 text-muted">The same rules for every coin, fixed in the contracts. The start market cap is set per asset.</p>
+        <p className="mt-1 text-13 text-muted">The same rules for every coin, fixed when it launches. Start market cap and curve size depend on the paired asset.</p>
         <Rows rows={params} />
       </section>
 

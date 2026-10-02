@@ -7,6 +7,7 @@ import { useHolders } from "@/lib/api";
 import { RowsSkeleton } from "./TradesTab";
 
 const LABEL: Record<Exclude<Holder["label"], null | "creator">, string> = {
+  curve: "Launch curve",
   pool: "Uniswap v4 pool",
 };
 

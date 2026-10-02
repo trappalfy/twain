@@ -15,37 +15,38 @@ export const DOCS: DocEntry[] = [
   {
     slug: "",
     title: "How it works",
-    summary: "Launch a coin paired with any listed asset. The whole supply goes into its own Uniswap pool, locked for good, in one transaction.",
+    summary:
+      "Launch a coin paired with ETH or a tokenized stock. It trades on its own launch curve first, then moves into a Uniswap pool whose liquidity is locked forever.",
     load: () => import("@/content/docs/how-it-works.mdx"),
   },
   {
     slug: "paired-assets",
     title: "Paired assets",
-    summary: "Every coin trades against one asset: ETH, a tokenized stock or another listed token. Its price and fees are counted in it.",
+    summary: "Every coin trades against one asset: ETH, a tokenized stock or another token Pons accepts. Its price and its fees are counted in that asset.",
     load: () => import("@/content/docs/paired-assets.mdx"),
   },
   {
     slug: "the-price",
-    title: "The price",
-    summary: "The pool starts at the asset's start market cap and follows x · y = k from there. Every buy moves the price up, every sell moves it down.",
+    title: "The launch curve",
+    summary: "A coin starts on its own curve: x · y = k from the pair's start market cap. Every buy moves the price up, every sell moves it down, until the curve sells out.",
     load: () => import("@/content/docs/the-price.mdx"),
   },
   {
     slug: "liquidity-lock",
-    title: "Liquidity lock",
-    summary: "The pool position sits in a contract that can do one thing: collect trading fees. It has no withdraw function and cannot be upgraded.",
+    title: "Graduation and lock",
+    summary: "When its curve sells out, a coin moves into a Uniswap v4 pool. The pool position is locked forever in a contract with no withdraw function.",
     load: () => import("@/content/docs/liquidity-lock.mdx"),
   },
   {
     slug: "fees",
     title: "Fees",
-    summary: `Every trade pays the pool ${PARAMS.poolFeePct}: ${PARAMS.creatorFeePct} to the creator and ${PARAMS.protocolFeePct} to the protocol, for as long as the coin trades.`,
+    summary: `Every trade pays ${PARAMS.tradeFeePct}, on the curve and in the pool. The creator earns ${PARAMS.creatorEarnsPct} of trading volume, paid in the pair asset, for as long as the coin trades.`,
     load: () => import("@/content/docs/fees.mdx"),
   },
   {
     slug: "contracts",
     title: "Contracts",
-    summary: "Addresses, verified source, and the exact powers of the owner.",
+    summary: "Addresses, verified source, and exactly what twain, Pons and Uniswap can and cannot change.",
     load: () => import("@/content/docs/contracts.mdx"),
   },
   {

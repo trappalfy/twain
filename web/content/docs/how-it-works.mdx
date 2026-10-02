@@ -1,30 +1,41 @@
+import { PARAMS } from "@twain/shared";
 import { Callout, RulesTable } from "@/components/docs/blocks";
 
-This is a coin launchpad on Robinhood Chain. Anyone can launch a coin here and pair it with an asset from the list: ETH, a tokenized stock, or another token. Every coin is launched under the same rules, written into the contracts before the first one shipped. Nobody can change them for a coin that is already live.
+twain is a coin launchpad on Robinhood Chain. Anyone can launch a coin here and pair it with ETH or another asset Pons accepts, such as a tokenized stock. twain launches every coin through Pons V2, an open launch protocol on Robinhood Chain, and gives each coin its own fee vault. Every twain coin is launched under the same rules, and nobody can change the rules of a coin that is already live.
 
 ## The life of a coin
 
-1. **Launch.** A creator picks a name, a ticker, an image and the [asset to pair with](/docs/paired-assets), and signs one transaction. In that transaction the contract mints 1,000,000,000 coins, opens the coin's own Uniswap v4 pool against the asset, and puts the whole supply into it. There is no launch fee, only gas.
-2. **The first buy.** The creator can buy first, in the same transaction, at the pool's start price. Nobody can get in before that buy.
-3. **Trading.** From the next block on, the coin trades in its pool like any Uniswap pair: on this site, through aggregators and bots, or on Uniswap itself. [The price](/docs/the-price) rises with every buy and falls with every sell.
-4. **The lock.** The pool's liquidity is [locked for good](/docs/liquidity-lock). It earns 1% of every trade, [split 60/40](/docs/fees) between the creator and the protocol for as long as the coin trades.
+1. **Launch.** A creator picks a name, a ticker, an image, a short description and links, and the [asset to pair with](/docs/paired-assets), and signs one transaction. In it, Pons creates the coin with {PARAMS.supply} units, all of them on the coin's launch curve; twain creates the coin's fee vault; and the creator can make a first buy. Pons charges a small launch fee in ETH, shown in the form before you sign.
+2. **The launch curve.** The coin trades on its own [curve](/docs/the-price), against its pair asset. Every buy moves the price up, every sell moves it down. For the first {PARAMS.snipeWindow}, buys pay an extra snipe tax that falls to zero; the creator's first buy is exempt.
+3. **Graduation.** When the curve has sold everything it was selling, the coin [moves into a Uniswap v4 pool](/docs/liquidity-lock) against the same asset, and the pool's liquidity is locked forever.
+4. **The pool.** From then on the coin trades in that pool: on this site, through aggregators and bots, or through any other app that routes Uniswap v4 trades.
+
+Every trade, on the curve and in the pool, pays {PARAMS.tradeFeePct}. The coin's creator earns {PARAMS.creatorEarnsPct} of trading volume, paid in the pair asset, for as long as the coin trades. See [Fees](/docs/fees).
 
 ## One supply, no allocations
 
-Every coin is minted with 1,000,000,000 units, and all of them go into the pool. Nothing else: no presale, no team share, no allocation to anyone.
+Every coin is minted once with {PARAMS.supply} units, all of them to its launch curve. Nothing else: no presale, no team share, no allocation to anyone.
 
-A creator who wants to hold their own coin buys it from the pool, at the pool's price, like everyone else.
+A creator who wants to hold their own coin buys it from the curve like everyone else. The only difference is that they can buy first, in the launch transaction, at the start price.
 
 ## The rules at a glance
 
 <RulesTable />
 
-## What the launchpad does and does not do
+## Who does what
 
-You sign every transaction from your own wallet, and the site never holds your keys. Each coin's liquidity and any unclaimed fees sit in the contracts, under the rules on these pages, not in an account anyone can move.
+- **twain** runs this site and the launcher every twain coin is launched through, and creates each coin's fee vault.
+- **Pons V2** creates the coin, runs its launch curve, moves it into Uniswap and locks the liquidity.
+- **Uniswap v4** runs the pool the coin trades in after graduation.
+
+What each of them can and cannot change is on [Contracts](/docs/contracts#who-controls-what).
+
+## What the site does and does not do
+
+You sign every transaction from your own wallet, and the site never holds your keys or your funds. A coin's curve, its locked liquidity and any unclaimed fees sit in contracts, under the rules on these pages, not in an account anyone can move.
 
 <Callout title="The rest is up to the coin">
 
-A launchpad can't make a coin good. What it can do is make the launch the same for everyone: same supply, same pool, same lock, same split. After that, the coin belongs to whoever builds around it.
+A launchpad can't make a coin good. What it can do is make the launch the same for everyone: same supply, same curve, same lock, same fees. After that, the coin belongs to whoever builds around it.
 
 </Callout>

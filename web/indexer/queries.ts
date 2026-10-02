@@ -1,10 +1,11 @@
 /** Read-side helpers for the REST API: row → API shape, rolling windows over `trade`, USD at current asset prices. */
-import { and, desc, eq, gte, ilike, inArray, lt, or, sql, type Column } from "drizzle-orm";
+import { and, desc, eq, gt, gte, ilike, inArray, lt, or, sql, type Column } from "drizzle-orm";
 import type { AssetInfo, Hex, TokenDetail, TokenSummary, Trade, TradesResponse } from "@twain/shared";
 import { formatUnits } from "viem";
 import type { IxDb } from "./db";
 import { assetInfos, usdPerUnit } from "./prices";
 import { asset, token, trade, type AssetRow, type TokenRow, type TradeRow } from "./schema";
+import { ZERO_ADDRESS } from "./shared";
 
 export type SQL = NonNullable<ReturnType<typeof and>>;
 export type { TokenRow };
@@ -30,9 +31,16 @@ export function pctChangeNum(now: number | null, base: number | null): number | 
 
 export type Assets = { rows: AssetRow[]; info: Map<Hex, AssetInfo> };
 
-/** Every listed asset with display details and current USD price (the list is short: the owner curates it). */
+/**
+ * Pair assets with display details and current USD price: ETH, every ERC-20 Pons currently approves, and any asset
+ * that already has twain coins (an approval can be withdrawn later). Tokens Pons only priced but never approved are
+ * left out, so they cost no price lookups.
+ */
 export async function loadAssets(db: IxDb): Promise<Assets> {
-  const rows = await db.select().from(asset);
+  const rows = await db
+    .select()
+    .from(asset)
+    .where(or(eq(asset.address, ZERO_ADDRESS), eq(asset.enabled, true), gt(asset.coins, 0)));
   return { rows, info: await assetInfos(rows) };
 }
 
@@ -116,9 +124,13 @@ function toSummary(r: TokenRow, roll: Rolling | undefined, info: AssetInfo): Tok
     creator: r.creator,
     createdAt: r.createdAt,
     createdBlock: r.createdBlock,
-    metadataUri: r.metadataUri,
+    metadataUri: r.logo,
     meta: { description: r.description, image: r.image, x: r.x, telegram: r.telegram, website: r.website },
     asset: info,
+    curve: r.curve,
+    vault: r.vault,
+    phase: r.phase,
+    progressBps: r.progressBps,
     poolId: r.poolId,
     coinIsCurrency0: r.coinIs0,
     priceX18: r.price.toString(),
@@ -144,12 +156,21 @@ export async function hydrate(db: IxDb, rows: TokenRow[], assets?: Assets): Prom
 
 export async function hydrateDetail(db: IxDb, r: TokenRow): Promise<TokenDetail> {
   const [summary] = await hydrate(db, [r]);
+  const onCurve = r.phase === "curve";
+  // A proposal that can no longer execute (expired) is not shown.
+  const pending = r.pendingRecipient && r.pendingExpiresAt != null && r.pendingExpiresAt >= nowSec() ? r : null;
   return {
     ...summary!,
     startPriceX18: r.startPrice.toString(),
+    graduationThreshold: r.graduationThreshold.toString(),
+    quoteReserve: onCurve ? r.quoteReserve.toString() : null,
+    tokenReserve: onCurve ? r.tokenReserve.toString() : null,
     creatorFeesAccrued: r.creatorFeesAccrued.toString(),
     creatorFeesClaimed: r.creatorFeesClaimed.toString(),
     coinFeesToCreator: r.coinFeesCreator.toString(),
+    feeRecipientChange: pending
+      ? { proposedRecipient: pending.pendingRecipient!, effectiveAt: pending.pendingEffectiveAt!, expiresAt: pending.pendingExpiresAt! }
+      : null,
   };
 }
 
@@ -178,6 +199,7 @@ function toTrade(r: TradeRow, symbol: string | null, info: AssetInfo): Trade {
     assetAmount: r.assetAmount.toString(),
     tokenAmount: r.tokenAmount.toString(),
     feeAsset: r.feeAsset.toString(),
+    venue: r.venue,
     priceX18: r.price.toString(),
   };
 }

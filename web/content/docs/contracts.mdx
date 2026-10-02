@@ -1,36 +1,49 @@
-import { ChainInfo, ContractList } from "@/components/docs/blocks";
+import { COPY, PARAMS } from "@twain/shared";
+import { ChainInfo, ContractList, NUM } from "@/components/docs/blocks";
 
-The launchpad is two contracts on Robinhood Chain, plus one coin contract per launch. None of them is a proxy, so none can be upgraded. The source is verified: open any address below to read it.
+A twain coin runs on three sets of contracts: twain's own, Pons V2's and Uniswap v4's. Every address below links to Robinhood Chain's Blockscout explorer.
 
-## Launchpad contracts
+## twain contracts
 
-<ContractList group="launchpad" />
+<ContractList group="twain" />
 
-Every coin is its own contract: a standard ERC-20 with 18 decimals and a fixed supply of 1,000,000,000, minted once, straight to the locker. It has no owner and no mint or burn function. Its address is on the coin's page.
+{COPY.audit} The source is published on Sourcify.
+
+## Pons V2 contracts
+
+<ContractList group="pons" />
+
+Pons' contracts are verified on Robinhood Chain's Blockscout. Each coin also has its own launch curve contract, created by the factory at launch; its address is on the coin's page.
+
+Every coin is its own contract too, created by Pons: an ERC-20 with 18 decimals and a fixed supply of {PARAMS.supply}, minted once, straight to its launch curve. Its name, ticker, logo, description and links are stored in it. It has no owner and no mint function; any holder can burn their own coins.
 
 ## Uniswap v4 on Robinhood Chain
 
-Every coin trades in a Uniswap v4 pool. These are Uniswap's own contracts, used as they are.
+After graduation every coin trades in a Uniswap v4 pool. These are Uniswap's own contracts, used as they are.
 
 <ContractList group="uniswap" />
 
 <ChainInfo />
 
-## Admin powers
+## Who controls what
 
-The launchpad has an owner. Ownership can be handed over in two steps, but never renounced. The owner can do exactly three things:
+### twain
 
-- change the treasury address that receives the protocol's share of fees;
-- pause and resume the creation of **new** coins;
-- add assets to the list new coins can be paired with, change their start market cap, or take them off the list — again for **new** coins only.
+The twain launcher has an owner: twain. Ownership can be handed over in two steps, but never renounced. The owner can do exactly two things:
 
-The owner cannot:
+- pause and resume new launches through twain;
+- change the address that receives twain's {NUM.twainSplit} of each vault's income.
 
-- stop or pause trading in any pool;
-- change any parameter of a coin that is live, such as its supply, pair, start price or fees;
-- touch a coin's liquidity, a creator's unclaimed fees, or the locked positions;
-- upgrade any contract.
+The owner cannot touch any coin, curve, pool or locked liquidity, or any fees owed to a creator. Fee vaults have no owner at all, and no twain contract can be upgraded.
 
-The locker has no owner at all.
+### Pons
 
-These guarantees hold at the contract level. They rely on Robinhood Chain itself, and on the contracts of each paired asset, which are covered in [Risks](/docs/risks).
+Pons V2 has its own owner, a multisig. For **new** launches, Pons can change its launch fee, the curve terms and the list of pair assets. For coins already launched, it cannot change their fees, tax or pool, cannot pause trading, and cannot move locked liquidity.
+
+It **can** redirect a coin's creator fee recipient, its twain fee vault, to another address. Such a change takes effect only after a public 3-day timelock. Pons has used this power before, for example at creators' request. While a change is pending for a twain coin, the coin's page shows a warning for those 3 days. Fees the vault has already received stay claimable.
+
+### Uniswap
+
+Uniswap v4's contracts are immutable.
+
+These limits hold at the contract level. They rely on Robinhood Chain itself, and on the contract of each pair asset, which are covered in [Risks](/docs/risks).

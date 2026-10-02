@@ -11,36 +11,31 @@ export const UNISWAP_V4 = {
 } as const satisfies Record<string, Address>;
 
 export type Deployment = {
-  launchpad: Address;
-  locker: Address;
-  /** L2 block of the launchpad deploy transaction (indexer start block). */
+  /** TwainLauncher: launches coins through Pons V2 (contracts/src/pons/TwainLauncher.sol). */
+  launcher: Address;
+  /** L2 block of the launcher deploy transaction (indexer start block). */
   startBlock: number;
 };
 
 /**
- * Contract addresses per environment.
- * Env overrides (NEXT_PUBLIC_LAUNCHPAD etc.) take precedence — see getDeployment().
+ * Contract addresses per environment. Env overrides (NEXT_PUBLIC_LAUNCHER, NEXT_PUBLIC_START_BLOCK) take precedence.
+ * The twain v1 Launchpad (0x2EEB…C0bC, 2026-10-02) is retired: coins now launch through Pons V2.
  */
 export const DEPLOYMENTS: Record<"local" | "mainnet", Deployment | null> = {
   local: null,
-  // twain v1, deployed 2026-10-02 by the owner (contracts/deployments/4663.json)
+  // TwainLauncher on Robinhood Chain (chain 4663), deployed by the owner 2026-10-02 (tx 0x8b92…869f); Sourcify: match.
   mainnet: {
-    launchpad: "0x2EEBE7D900ef1AC4fc205B0333DdF126E40EC0bC",
-    locker: "0xbFb5eE0D73a609b715122511E1E61877FB6e2e2D",
-    startBlock: 77726483,
+    launcher: "0xc8eF70B7Bc47c2D63fD38Cf7124f9b322F949296",
+    startBlock: 78457751,
   },
 };
 
 const ZERO = "0x0000000000000000000000000000000000000000" as Address;
 
 export function getDeployment(env: Record<string, string | undefined> = {}): Deployment {
-  const fromEnv =
-    env.NEXT_PUBLIC_LAUNCHPAD || env.LAUNCHPAD_ADDRESS
-      ? {
-          launchpad: (env.NEXT_PUBLIC_LAUNCHPAD || env.LAUNCHPAD_ADDRESS) as Address,
-          locker: (env.NEXT_PUBLIC_LOCKER || env.LOCKER_ADDRESS || ZERO) as Address,
-          startBlock: Number(env.NEXT_PUBLIC_START_BLOCK || env.START_BLOCK || 0),
-        }
-      : null;
-  return fromEnv ?? DEPLOYMENTS.mainnet ?? DEPLOYMENTS.local ?? { launchpad: ZERO, locker: ZERO, startBlock: 0 };
+  const launcher = env.NEXT_PUBLIC_LAUNCHER || env.LAUNCHER_ADDRESS;
+  const fromEnv = launcher
+    ? { launcher: launcher as Address, startBlock: Number(env.NEXT_PUBLIC_START_BLOCK || env.START_BLOCK || 0) }
+    : null;
+  return fromEnv ?? DEPLOYMENTS.mainnet ?? DEPLOYMENTS.local ?? { launcher: ZERO, startBlock: 0 };
 }

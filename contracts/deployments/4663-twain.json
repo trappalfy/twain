@@ -1,0 +1,10 @@
+{
+  "chainId": 4663,
+  "launcher": "0xc8eF70B7Bc47c2D63fD38Cf7124f9b322F949296",
+  "owner": "0x98036E3abe4A436eAEa858C5Ff8f8Af7D21D4694",
+  "pons": "0x7eD598BcEf8bd9Edd8C97A195C6d13f40801EC7e",
+  "treasury": "0x98036E3abe4A436eAEa858C5Ff8f8Af7D21D4694",
+  "vaultImplementation": "0x24eD23141eF6A794AF2Fd39aa2797d19509183c3",
+  "deployTx": "0x8b92f1a2ffcbc76b814096775368dd29920661b77c6bea2e96db5d86cda9869f",
+  "deployBlock": 78457751
+}

@@ -1,16 +1,18 @@
 import { bigint, boolean, customType, integer, pgSchema, primaryKey, text } from "drizzle-orm/pg-core";
+import type { CoinPhase } from "@twain/shared";
 
 /**
  * Built-in indexer tables, in their own Postgres schema next to the forum tables (same database).
  * Amounts are in the smallest unit of their currency (numeric(78)): coin amounts with 18 decimals, asset amounts with
- * the asset's decimals. Prices are `priceX18` (asset smallest units per whole coin × 1e18, see @twain/shared pool.ts).
+ * the asset's decimals. Prices are `priceX18` (asset smallest units per whole coin × 1e18, see @twain/shared pons.ts).
  * Timestamps unix seconds, addresses lowercase. Rolling windows (24h / 7d volume, change24h) are computed at query
  * time over `trade`; USD values are computed at query time from each asset's current price.
  *
  * Bump SCHEMA_VERSION whenever a table or an event handler changes: the schema is then dropped and rebuilt from
- * START_BLOCK on the next sync (cheap — only the launchpad's own logs, its coins and their pools are fetched).
+ * START_BLOCK on the next sync (cheap — only twain's own contracts, its coins and their pools are fetched, plus the
+ * Pons factory's pair-token history once).
  */
-export const SCHEMA_VERSION = 1;
+export const SCHEMA_VERSION = 2;
 export const SCHEMA = "twain_ix";
 
 const ix = pgSchema(SCHEMA);
@@ -26,11 +28,13 @@ const int8 = (name: string) => bigint(name, { mode: "number" });
 
 export const syncState = ix.table("sync_state", {
   id: text("id").primaryKey(),
-  launchpad: text("launchpad").notNull(),
+  launcher: text("launcher").notNull(),
   version: integer("version").notNull(),
   startBlock: int8("start_block").notNull(),
   /** Last block whose logs are fully applied. */
   cursor: int8("cursor").notNull(),
+  /** Pons pair-token history (approvals, economics) is applied up to this block; −1 = not loaded yet. */
+  assetsCursor: int8("assets_cursor").notNull(),
   /** Chain head (minus the safety lag) seen by the last sync. */
   head: int8("head").notNull(),
   /** ms epoch; a sync holds the lease until then (0 = free). */
@@ -42,16 +46,21 @@ export const syncState = ix.table("sync_state", {
   lastError: text("last_error"),
 });
 
-/** Assets the owner listed (AssetSet / AssetDisabled). ERC-20 details are read once when first listed. */
+/**
+ * Pair assets: ETH (Pons launch config 0) and every ERC-20 the Pons factory ever gave economics to
+ * (PairTokenEconomicsUpdated / PairTokenApprovalUpdated). ERC-20 details are read once when first seen.
+ */
 export const asset = ix.table("asset", {
   address: text("address").$type<`0x${string}`>().primaryKey(),
   symbol: text("symbol").notNull(),
   name: text("name").notNull(),
   decimals: integer("decimals").notNull(),
+  /** Pons currently accepts it for new launches. */
   enabled: boolean("enabled").notNull(),
-  startMcap: wei("start_mcap").notNull(),
-  startTick: integer("start_tick").notNull(),
-  listedAt: int8("listed_at").notNull(),
+  phantomQuote: wei("phantom_quote").notNull(),
+  graduationThreshold: wei("graduation_threshold").notNull(),
+  listedBlock: int8("listed_block").notNull(),
+  /** twain coins launched against it. */
   coins: integer("coins").notNull(),
 });
 
@@ -59,42 +68,55 @@ export const token = ix.table("token", {
   address: text("address").$type<`0x${string}`>().primaryKey(),
   name: text("name").notNull(),
   symbol: text("symbol").notNull(),
-  /** Current creator (changes on CreatorTransferred). */
+  /** Current creator (the vault's creator; changes on CreatorTransferred). */
   creator: text("creator").$type<`0x${string}`>().notNull(),
   createdAt: int8("created_at").notNull(),
   createdBlock: int8("created_block").notNull(),
   createdTx: text("created_tx").$type<`0x${string}`>().notNull(),
   asset: text("asset").$type<`0x${string}`>().notNull(),
+  curve: text("curve").$type<`0x${string}`>().notNull(),
+  vault: text("vault").$type<`0x${string}`>().notNull(),
+  /** The graduated v4 pool (deterministic from the launch; trades there once phase = pool). */
   poolId: text("pool_id").$type<`0x${string}`>().notNull(),
   coinIs0: boolean("coin_is0").notNull(),
-  startTick: integer("start_tick").notNull(),
+  phase: text("phase").$type<CoinPhase>().notNull(),
+  /** Curve constants, read once at launch. */
+  phantomQuote: wei("phantom_quote").notNull(),
+  graduationThreshold: wei("graduation_threshold").notNull(),
+  reservedTokens: wei("reserved_tokens").notNull(),
+  supply: wei("supply").notNull(),
+  feeBps: integer("fee_bps").notNull(),
+  taxBps: integer("tax_bps").notNull(),
+  /** Curve reserves replayed from CurveBuy / CurveSell (last values kept after graduation). */
+  quoteReserve: wei("quote_reserve").notNull(),
+  tokenReserve: wei("token_reserve").notNull(),
+  progressBps: integer("progress_bps").notNull(),
   startPrice: wei("start_price").notNull(),
-  metadataUri: text("metadata_uri").notNull(),
+  /** Onchain token info (Pons launcher token): logo URI as stored, then the parsed display fields. */
+  logo: text("logo").notNull(),
   description: text("description"),
   image: text("image"),
   x: text("x"),
   telegram: text("telegram"),
   website: text("website"),
-  /** Metadata is fetched after the token row is written; failed fetches are retried a few times. */
-  metaPending: boolean("meta_pending").notNull(),
-  metaAttempts: integer("meta_attempts").notNull(),
-  /** Locked position (LiquidityLocked). */
-  liquidity: wei("liquidity").notNull(),
-  /** Spot price (priceX18) and market cap (asset smallest units) after the last swap. */
+  /** Spot price (priceX18) and market cap (asset smallest units) after the last trade. */
   price: wei("price").notNull(),
   mcap: wei("mcap").notNull(),
   volumeAll: wei("volume_all").notNull(),
   tradesCount: integer("trades_count").notNull(),
-  /** Holders with balance > 0, excluding zero address, the locker and the PoolManager. */
+  /** Holders with balance > 0, excluding infrastructure, the PoolManager, the curve and the vault. */
   holdersCount: integer("holders_count").notNull(),
   lastBuyAt: int8("last_buy_at"),
   lastTradeAt: int8("last_trade_at"),
-  /** Asset side of the pool fees credited to the creator (FeesDeposited) and claimed (CreatorFeesClaimed). */
+  /** Vault splits: creator's share in the pair asset (FeesSplit) and paid out (CreatorPaid); creator's share in coins. */
   creatorFeesAccrued: wei("creator_fees_accrued").notNull(),
   creatorFeesClaimed: wei("creator_fees_claimed").notNull(),
-  /** Coin side of the pool fees paid out by the locker (FeesCollected). */
   coinFeesCreator: wei("coin_fees_creator").notNull(),
-  coinFeesProtocol: wei("coin_fees_protocol").notNull(),
+  /** Pons creator fee recipient (the vault unless the Pons owner moved it) and a pending owner override. */
+  feeRecipient: text("fee_recipient").$type<`0x${string}`>().notNull(),
+  pendingRecipient: text("pending_recipient").$type<`0x${string}`>(),
+  pendingEffectiveAt: int8("pending_effective_at"),
+  pendingExpiresAt: int8("pending_expires_at"),
 });
 
 export const trade = ix.table("trade", {
@@ -104,10 +126,11 @@ export const trade = ix.table("trade", {
   asset: text("asset").$type<`0x${string}`>().notNull(),
   trader: text("trader").$type<`0x${string}`>().notNull(),
   side: text("side").$type<"buy" | "sell">().notNull(),
-  /** Buy: asset paid incl. fee. Sell: asset received. */
+  venue: text("venue").$type<"curve" | "pool">().notNull(),
+  /** Buy: asset paid incl. fees. Sell: asset received. */
   assetAmount: wei("asset_amount").notNull(),
   tokenAmount: wei("token_amount").notNull(),
-  /** The 1% fee valued in the asset (sells pay it in coins). */
+  /** Every fee of the trade valued in the asset (Pons fee + creator tax + snipe tax). */
   feeAsset: wei("fee_asset").notNull(),
   /** Spot price after the trade (priceX18). */
   price: wei("price").notNull(),
@@ -152,10 +175,13 @@ export const dailyStats = ix.table(
     asset: text("asset").$type<`0x${string}`>().notNull(),
     dayStart: int8("day_start").notNull(),
     volume: wei("volume").notNull(),
+    /** Every trade fee (Pons fee + creator tax + snipe tax). */
     fees: wei("fees").notNull(),
     trades: integer("trades").notNull(),
     launches: integer("launches").notNull(),
-    protocolClaimed: wei("protocol_claimed").notNull(),
+    /** Vault splits (FeesSplit): creators' and the twain treasury's shares; coin-side splits valued at the coin price. */
+    creatorFees: wei("creator_fees").notNull(),
+    protocolFees: wei("protocol_fees").notNull(),
   },
   (t) => [primaryKey({ columns: [t.day, t.asset] })],
 );
@@ -167,7 +193,7 @@ export const account = ix.table("account", {
   tradesCount: integer("trades_count").notNull(),
 });
 
-/** Every coin's pool: v4 poolId → coin (for Swap logs). */
+/** Every coin's graduated pool: v4 poolId → coin (for Swap logs). */
 export const pool = ix.table("pool", {
   poolId: text("pool_id").$type<`0x${string}`>().primaryKey(),
   token: text("token").$type<`0x${string}`>().notNull(),
@@ -190,10 +216,11 @@ export const DDL = [
   `CREATE SCHEMA IF NOT EXISTS ${S}`,
   `CREATE TABLE IF NOT EXISTS ${S}.sync_state (
     id text PRIMARY KEY,
-    launchpad text NOT NULL,
+    launcher text NOT NULL,
     version integer NOT NULL,
     start_block bigint NOT NULL,
     cursor bigint NOT NULL,
+    assets_cursor bigint NOT NULL DEFAULT -1,
     head bigint NOT NULL DEFAULT 0,
     lease_until bigint NOT NULL DEFAULT 0,
     last_sync_at bigint NOT NULL DEFAULT 0,
@@ -206,9 +233,9 @@ export const DDL = [
     name text NOT NULL,
     decimals integer NOT NULL,
     enabled boolean NOT NULL,
-    start_mcap ${W},
-    start_tick integer NOT NULL,
-    listed_at bigint NOT NULL,
+    phantom_quote ${W},
+    graduation_threshold ${W},
+    listed_block bigint NOT NULL,
     coins integer NOT NULL
   )`,
   `CREATE TABLE IF NOT EXISTS ${S}.token (
@@ -220,19 +247,27 @@ export const DDL = [
     created_block bigint NOT NULL,
     created_tx text NOT NULL,
     asset text NOT NULL,
+    curve text NOT NULL,
+    vault text NOT NULL,
     pool_id text NOT NULL,
     coin_is0 boolean NOT NULL,
-    start_tick integer NOT NULL,
+    phase text NOT NULL,
+    phantom_quote ${W},
+    graduation_threshold ${W},
+    reserved_tokens ${W},
+    supply ${W},
+    fee_bps integer NOT NULL,
+    tax_bps integer NOT NULL,
+    quote_reserve ${W},
+    token_reserve ${W},
+    progress_bps integer NOT NULL,
     start_price ${W},
-    metadata_uri text NOT NULL,
+    logo text NOT NULL,
     description text,
     image text,
     x text,
     telegram text,
     website text,
-    meta_pending boolean NOT NULL,
-    meta_attempts integer NOT NULL,
-    liquidity ${W},
     price ${W},
     mcap ${W},
     volume_all ${W},
@@ -243,19 +278,22 @@ export const DDL = [
     creator_fees_accrued ${W},
     creator_fees_claimed ${W},
     coin_fees_creator ${W},
-    coin_fees_protocol ${W}
+    fee_recipient text NOT NULL,
+    pending_recipient text,
+    pending_effective_at bigint,
+    pending_expires_at bigint
   )`,
   `CREATE INDEX IF NOT EXISTS token_creator_idx ON ${S}.token (creator)`,
   `CREATE INDEX IF NOT EXISTS token_created_at_idx ON ${S}.token (created_at)`,
   `CREATE INDEX IF NOT EXISTS token_last_buy_idx ON ${S}.token (last_buy_at)`,
   `CREATE INDEX IF NOT EXISTS token_asset_idx ON ${S}.token (asset)`,
-  `CREATE INDEX IF NOT EXISTS token_meta_pending_idx ON ${S}.token (meta_pending) WHERE meta_pending`,
   `CREATE TABLE IF NOT EXISTS ${S}.trade (
     id text PRIMARY KEY,
     token text NOT NULL,
     asset text NOT NULL,
     trader text NOT NULL,
     side text NOT NULL,
+    venue text NOT NULL,
     asset_amount ${W},
     token_amount ${W},
     fee_asset ${W},
@@ -297,7 +335,8 @@ export const DDL = [
     fees ${W},
     trades integer NOT NULL,
     launches integer NOT NULL,
-    protocol_claimed ${W},
+    creator_fees ${W},
+    protocol_fees ${W},
     PRIMARY KEY (day, asset)
   )`,
   `CREATE INDEX IF NOT EXISTS daily_stats_day_start_idx ON ${S}.daily_stats (day_start)`,

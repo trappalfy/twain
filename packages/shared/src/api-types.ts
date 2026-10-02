@@ -10,7 +10,7 @@ export type SortKey = "recentBuys" | "newest" | "oldest" | "marketCap" | "volume
 export type WindowKey = "all" | "24h" | "7d";
 export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
 
-/** native = ETH, stock = Robinhood stock token, token = any other listed ERC-20. */
+/** native = ETH, stock = Robinhood stock token, token = any other ERC-20 Pons V2 accepts as a pair. */
 export type AssetKind = "native" | "stock" | "token";
 
 export type AssetInfo = {
@@ -23,12 +23,14 @@ export type AssetInfo = {
   usd: number | null; // USD per whole unit
 };
 
-/** GET /api/assets — every asset ever listed by the owner, with its launch settings. */
+/** GET /api/assets — ETH plus every ERC-20 Pons V2 approves as a pair asset, with its curve terms (smallest units). */
 export type ListedAsset = AssetInfo & {
-  enabled: boolean;
-  startMcap: string; // as set by the owner, smallest units
-  startTick: number; // "asset per coin", aligned to the tick spacing
-  coins: number; // coins launched against it
+  enabled: boolean; // currently approved by Pons
+  phantomQuote: string; // virtual quote reserve a new curve starts with
+  graduationThreshold: string; // real quote the curve raises before it graduates into the v4 pool
+  startMcap: string; // market cap at launch (= phantomQuote: the whole supply at the start price)
+  graduationMcap: string; // market cap when the curve completes
+  coins: number; // twain coins launched against it
 };
 export type AssetsResponse = ListedAsset[];
 
@@ -40,17 +42,24 @@ export type TokenMeta = {
   website: string | null;
 };
 
+/** curve = trading on the Pons curve; graduating = curve completed, v4 pool not seeded yet; pool = Uniswap v4 pool. */
+export type CoinPhase = "curve" | "graduating" | "pool" | "rescued";
+
 export type TokenSummary = {
   address: Hex;
   name: string;
   symbol: string;
-  creator: Hex; // current creator
+  creator: Hex; // current creator (the vault's creator)
   createdAt: number;
   createdBlock: number;
   metadataUri: string;
   meta: TokenMeta;
   asset: AssetInfo;
-  poolId: Hex;
+  curve: Hex; // Pons curve (trades before graduation)
+  vault: Hex; // TwainFeeVault (Pons creator fee recipient)
+  phase: CoinPhase;
+  progressBps: number; // share of the curve's sellable allocation bought (10,000 = graduated)
+  poolId: Hex; // graduated Uniswap v4 pool (Pons meme hook, fee 0, spacing 200); trades there once phase = pool
   coinIsCurrency0: boolean;
   priceX18: string;
   mcapAsset: string;
@@ -69,9 +78,14 @@ export type TokenSummary = {
 
 export type TokenDetail = TokenSummary & {
   startPriceX18: string;
-  creatorFeesAccrued: string; // asset side, credited when the pool fees are collected
-  creatorFeesClaimed: string;
-  coinFeesToCreator: string; // coin side, paid out directly at collection
+  graduationThreshold: string; // quote the curve raises before graduating
+  quoteReserve: string | null; // curve reserves (phase = curve), null after graduation
+  tokenReserve: string | null;
+  creatorFeesAccrued: string; // creator's share split by the vault so far, pair asset
+  creatorFeesClaimed: string; // paid out to the creator, pair asset
+  coinFeesToCreator: string; // creator's share in the coin itself (rare: Pons rescue/vest paths)
+  /** Pons owner proposed to move this coin's fee recipient away from its vault (3-day timelock). */
+  feeRecipientChange: { proposedRecipient: Hex; effectiveAt: number; expiresAt: number } | null;
 };
 
 export type Page<T> = { items: T[]; total: number; page: number; pageSize: number };
@@ -112,9 +126,10 @@ export type Trade = {
   asset: AssetInfo;
   trader: Hex;
   side: "buy" | "sell";
-  assetAmount: string; // buy: asset paid incl. fee; sell: asset received
+  assetAmount: string; // buy: asset paid incl. fees; sell: asset received
   tokenAmount: string;
-  feeAsset: string; // the 1% fee, valued in the asset
+  feeAsset: string; // every fee of the trade (Pons fee + creator tax + snipe tax), valued in the asset
+  venue: "curve" | "pool";
   priceX18: string; // spot after the trade
 };
 export type TradesResponse = { items: Trade[]; nextCursor: string | null };
@@ -124,7 +139,7 @@ export type Holder = {
   account: Hex;
   balance: string;
   shareBps: number; // of TOTAL_SUPPLY
-  label: "pool" | "creator" | null;
+  label: "curve" | "pool" | "creator" | null;
 };
 export type HoldersResponse = Holder[];
 

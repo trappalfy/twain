@@ -1,33 +1,44 @@
-import { Callout, Facts } from "@/components/docs/blocks";
+import { Callout, Facts, GraduationFacts, NUM, PoolParams } from "@/components/docs/blocks";
 
-Every coin's liquidity is locked from the moment it exists. The whole supply goes into the pool in the launch transaction, as one position held by a contract that can do one thing: collect trading fees. It has no withdraw function, and it can't be upgraded to get one.
+A coin graduates when its launch curve has sold everything it was selling. At that moment the curve stops trading, and Pons moves the coin into a Uniswap v4 pool against the same asset. Its liquidity there is locked forever.
 
-## The locker
+## What goes into the pool
 
-The pool position is created by the locker and belongs to it directly. It is not a transferable receipt that someone could hand on or sell.
+Everything the curve raised goes into the pool, together with coins the curve kept back, as one full-range position. The pool opens at the curve's last price, so the move itself does not change the price.
+
+The pool needs only as many coins as match the raised asset at that price. The rest of the kept-back coins go into the same lock as the position, outside the pool, and stay there forever: they never circulate. For a coin paired with ETH that is about {NUM.ethLocked} of the supply.
+
+For a coin paired with ETH, on today's terms:
+
+<GraduationFacts />
+
+## Who completes the move
+
+Moving a coin into its pool takes one or two transactions, and anyone may send them. Pons' keeper usually sends them within seconds of the last buy. If the move is still pending when you open the coin's page, the page shows a button that completes it from your wallet; you pay only the gas.
+
+## The pool
+
+<PoolParams />
+
+From then on, the coin trades in this pool through any Uniswap v4 router: this site, aggregators, wallets and trading bots. The fees are charged by the Pons hook on every swap, so they reach the creator and the other recipients without the locked position ever being touched.
+
+## The lock
+
+The pool position is minted straight to Pons' launch locker. It is not a receipt someone could hand on or sell.
 
 <Facts
   rows={[
-    ["Owns", "Every coin's pool position"],
-    ["Can do", "Collect the position's trading fees"],
-    ["Who can trigger a collection", "Anyone"],
+    ["Holds", "Every graduated Pons coin's pool position, and the coins kept back from it"],
     ["Withdraw function", "None"],
-    ["Owner or admin", "None"],
+    ["Can twain, Pons or the creator remove the liquidity", "No"],
+    ["Owner powers", "One: connecting the locker to the Pons factory, once, already done"],
     ["Upgradeable", "No, it is not a proxy"],
   ]}
 />
 
-The collected fees are split between the creator and the protocol, as described on [Fees](/docs/fees). Nothing else can leave the locker.
+## Other pools
 
-## If someone opens the pool first
-
-On Uniswap v4 anyone can open a pool for any pair. A coin's address depends on a random value in the creator's launch transaction, so nobody can know it in advance; and if a pool for that address already existed, the launch would simply fail and nothing would be created. The coin's liquidity can only ever go into a pool the launch opened itself, at the asset's start price.
-
-Other pools for the same coin can exist, with another fee or hook. They are not the coin's launch pool and hold none of its locked liquidity.
-
-## Rounding dust
-
-When the position is created, rounding leaves a tiny remainder of the coin that can't be placed into liquidity: a few thousand of its smallest units for an ETH pair, far below a single coin in any case. It stays in the locker forever. Nobody can withdraw it either.
+On Uniswap v4 anyone can open another pool for any pair, with a different fee or hook. Such a pool for a twain coin is not the coin's graduated pool: it holds none of the locked liquidity, and its trades pay nothing to the coin's creator.
 
 <Callout title="What a lock does not mean">
 

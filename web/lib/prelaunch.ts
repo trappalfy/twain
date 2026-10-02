@@ -1,7 +1,7 @@
 /**
  * Data before the contracts are deployed (config.prelaunch): no token can exist yet, so every list is empty and every
  * figure is zero — the UI shows its normal empty states instead of "could not be loaded". The ETH price still comes
- * from the site's own /api/eth-usd. Once NEXT_PUBLIC_LAUNCHPAD (and the indexer) are set, lib/api.ts reads the indexer.
+ * from the site's own /api/eth-usd. Once NEXT_PUBLIC_LAUNCHER is set, lib/api.ts reads the built-in indexer.
  */
 import type {
   AccountResponse,

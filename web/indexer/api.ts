@@ -5,8 +5,7 @@
  * from each asset's current price. /api/eth-usd is app/api/eth-usd/route.ts.
  */
 import { Hono } from "hono";
-import { and, asc, count, desc, eq, gt, gte, lte, min, ne, sql, sum } from "drizzle-orm";
-import { CREATOR_FEE_SHARE, TOTAL_SUPPLY } from "@twain/shared";
+import { and, asc, count, desc, eq, gt, gte, lte, min, notInArray, sql, sum } from "drizzle-orm";
 import type {
   AccountResponse,
   AssetKind,
@@ -25,7 +24,7 @@ import type {
 } from "@twain/shared";
 import { ixDb, type IxDb } from "./db";
 import { account, candle, dailyStats, holder, token, trade, type DailyRow } from "./schema";
-import { DAY, dayKey, dayStartOf, INTERVALS, LOCKER, POOL_MANAGER, type Hex } from "./shared";
+import { DAY, dayKey, dayStartOf, INFRA, INTERVALS, POOL_MANAGER, type Hex } from "./shared";
 import {
   big,
   hydrate,
@@ -71,16 +70,22 @@ const notFound = { error: "not_found" } as const;
 
 const KIND_ORDER: Record<AssetKind, number> = { native: 0, stock: 1, token: 2 };
 
+/** Market cap when the curve completes: k = phantom · supply, quote reserve = phantom + threshold → (p + t)² / p. */
+const graduationMcap = (phantom: bigint, threshold: bigint) => (phantom === 0n ? 0n : ((phantom + threshold) ** 2n) / phantom);
+
 app.get("/api/assets", async (c) => {
   const db = await ixDb();
   const assets = await loadAssets(db);
   // ETH, then stock tokens, then other tokens; most-used first within each group.
   const body: AssetsResponse = assets.rows
+    .filter((r) => r.phantomQuote > 0n)
     .map((r) => ({
       ...infoOf(assets, r.address),
       enabled: r.enabled,
-      startMcap: r.startMcap.toString(),
-      startTick: r.startTick,
+      phantomQuote: r.phantomQuote.toString(),
+      graduationThreshold: r.graduationThreshold.toString(),
+      startMcap: r.phantomQuote.toString(),
+      graduationMcap: graduationMcap(r.phantomQuote, r.graduationThreshold).toString(),
       coins: r.coins,
     }))
     .sort((a, b) => KIND_ORDER[a.kind] - KIND_ORDER[b.kind] || b.coins - a.coins || a.symbol.localeCompare(b.symbol));
@@ -212,22 +217,27 @@ app.get("/api/tokens/:address/holders", async (c) => {
   const address = addressParam(c.req.param("address"));
   if (!address) return c.json(badAddress, 400);
   const limit = intParam(c.req.query("limit"), 20, 1, 100);
-  const [row] = await db.select({ creator: token.creator }).from(token).where(eq(token.address, address)).limit(1);
+  const [row] = await db
+    .select({ creator: token.creator, curve: token.curve, vault: token.vault, supply: token.supply })
+    .from(token)
+    .where(eq(token.address, address))
+    .limit(1);
   if (!row) return c.json(notFound, 404);
 
+  // Pons' contracts (graduation, supply locked forever at graduation, escrowed fees) and the coin's fee vault are not
+  // holders in any useful sense; the curve (unsold supply) and the pool are listed with their labels.
   const rows = await db
     .select({ account: holder.account, balance: holder.balance })
     .from(holder)
-    // The locker only keeps rounding dust from creation; it is not a holder in any useful sense.
-    .where(and(eq(holder.token, address), gt(holder.balance, 0n), ne(holder.account, LOCKER)))
+    .where(and(eq(holder.token, address), gt(holder.balance, 0n), notInArray(holder.account, [...INFRA, row.vault])))
     .orderBy(desc(holder.balance), asc(holder.account))
     .limit(limit);
 
   const body: HoldersResponse = rows.map((h) => ({
     account: h.account,
     balance: h.balance.toString(),
-    shareBps: Number((h.balance * 10_000n) / TOTAL_SUPPLY),
-    label: h.account === POOL_MANAGER ? "pool" : h.account === row.creator ? "creator" : null,
+    shareBps: row.supply > 0n ? Number((h.balance * 10_000n) / row.supply) : 0,
+    label: h.account === row.curve ? "curve" : h.account === POOL_MANAGER ? "pool" : h.account === row.creator ? "creator" : null,
   }));
   return c.json(body);
 });
@@ -243,33 +253,50 @@ async function completedDays(db: IxDb) {
   return { today, latest };
 }
 
-type Totals = { volume: bigint; fees: bigint; launches: number };
+type Totals = Pick<DailyRow, "volume" | "fees" | "launches" | "creatorFees" | "protocolFees">;
+const ZERO_TOTALS: Totals = { volume: 0n, fees: 0n, launches: 0, creatorFees: 0n, protocolFees: 0n };
+
+/** Sum of the USD values of per-asset amounts; null when nothing could be priced (0 when every amount is 0). */
+function usdSum(perAsset: Map<Hex, Totals>, assets: Assets, pick: (t: Totals) => bigint): number | null {
+  let out: number | null = null;
+  let allZero = true;
+  for (const [addr, t] of perAsset) {
+    const amount = pick(t);
+    if (amount !== 0n) allZero = false;
+    const v = usdOf(amount, infoOf(assets, addr));
+    if (v != null) out = (out ?? 0) + v;
+  }
+  return out === null && allZero ? 0 : out;
+}
 
 /** Per-asset totals → USD sums (assets without a price are left out of the USD figures). */
 function summarise(perAsset: Map<Hex, Totals>, assets: Assets) {
-  let volumeUsd: number | null = null;
-  let feesUsd: number | null = null;
   let launches = 0;
   const byAsset: AssetTotals[] = [];
   for (const [addr, t] of perAsset) {
-    const info = infoOf(assets, addr);
     launches += t.launches;
-    const v = usdOf(t.volume, info);
-    const f = usdOf(t.fees, info);
-    if (v != null) volumeUsd = (volumeUsd ?? 0) + v;
-    if (f != null) feesUsd = (feesUsd ?? 0) + f;
-    byAsset.push({ asset: info, volume: t.volume.toString(), fees: t.fees.toString(), launches: t.launches });
+    byAsset.push({ asset: infoOf(assets, addr), volume: t.volume.toString(), fees: t.fees.toString(), launches: t.launches });
   }
-  if (volumeUsd === null && byAsset.every((a) => a.volume === "0")) volumeUsd = 0;
-  if (feesUsd === null && byAsset.every((a) => a.fees === "0")) feesUsd = 0;
-  return { volumeUsd, feesUsd, launches, byAsset };
+  return {
+    volumeUsd: usdSum(perAsset, assets, (t) => t.volume),
+    creatorFeesUsd: usdSum(perAsset, assets, (t) => t.creatorFees),
+    protocolFeesUsd: usdSum(perAsset, assets, (t) => t.protocolFees),
+    launches,
+    byAsset,
+  };
 }
 
-const totalsOf = (rows: Pick<DailyRow, "asset" | "volume" | "fees" | "launches">[]) => {
+const totalsOf = (rows: (Totals & { asset: Hex })[]) => {
   const m = new Map<Hex, Totals>();
   for (const r of rows) {
-    const t = m.get(r.asset) ?? { volume: 0n, fees: 0n, launches: 0 };
-    m.set(r.asset, { volume: t.volume + r.volume, fees: t.fees + r.fees, launches: t.launches + r.launches });
+    const t = m.get(r.asset) ?? ZERO_TOTALS;
+    m.set(r.asset, {
+      volume: t.volume + r.volume,
+      fees: t.fees + r.fees,
+      launches: t.launches + r.launches,
+      creatorFees: t.creatorFees + r.creatorFees,
+      protocolFees: t.protocolFees + r.protocolFees,
+    });
   }
   return m;
 };
@@ -287,10 +314,26 @@ app.get("/api/stats", async (c) => {
   let prior: Map<Hex, Totals> | null = null;
   if (window === "all") {
     const rows = await db
-      .select({ asset: dailyStats.asset, volume: sum(dailyStats.volume), fees: sum(dailyStats.fees), launches: sum(dailyStats.launches) })
+      .select({
+        asset: dailyStats.asset,
+        volume: sum(dailyStats.volume),
+        fees: sum(dailyStats.fees),
+        launches: sum(dailyStats.launches),
+        creatorFees: sum(dailyStats.creatorFees),
+        protocolFees: sum(dailyStats.protocolFees),
+      })
       .from(dailyStats)
       .groupBy(dailyStats.asset);
-    current = totalsOf(rows.map((r) => ({ asset: r.asset, volume: big(r.volume), fees: big(r.fees), launches: num(r.launches) })));
+    current = totalsOf(
+      rows.map((r) => ({
+        asset: r.asset,
+        volume: big(r.volume),
+        fees: big(r.fees),
+        launches: num(r.launches),
+        creatorFees: big(r.creatorFees),
+        protocolFees: big(r.protocolFees),
+      })),
+    );
   } else {
     const rows =
       latest === null
@@ -305,7 +348,6 @@ app.get("/api/stats", async (c) => {
 
   const now = summarise(current, assets);
   const before = prior ? summarise(prior, assets) : null;
-  const creatorShare = Number(CREATOR_FEE_SHARE) / 100;
   const body: ProtocolStats = {
     window,
     updatedAt: nowSec(),
@@ -315,10 +357,8 @@ app.get("/api/stats", async (c) => {
     launches: now.launches,
     launchesChangePct: before ? pctChange(BigInt(now.launches), BigInt(before.launches)) : null,
     uniqueCreators: num(creators?.n),
-    feesUsd: {
-      creators: now.feesUsd == null ? null : now.feesUsd * creatorShare,
-      protocol: now.feesUsd == null ? null : now.feesUsd * (1 - creatorShare),
-    },
+    // Fee vault splits: the creators' and the twain treasury's shares (Pons' own share is not included).
+    feesUsd: { creators: now.creatorFeesUsd, protocol: now.protocolFeesUsd },
     byAsset: now.byAsset,
   };
   return c.json(body);

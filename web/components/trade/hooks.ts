@@ -1,7 +1,7 @@
 "use client";
 
-import { NATIVE_ASSET, type AssetInfo, type TokenDetail } from "@twain/shared";
-import { launchpadAbi, tokenAbi } from "@twain/shared/abi";
+import { coinPhase, CREATOR_FEE_SHARE, curveCreatorSide, NATIVE_ASSET, PONS_V2, type AssetInfo, type CoinPhase, type TokenDetail } from "@twain/shared";
+import { ponsCurveAbi, ponsFactoryAbi, tokenAbi, twainFeeVaultAbi } from "@twain/shared/abi";
 import { useConnectModal } from "@rainbow-me/rainbowkit";
 import { useEffect, useState } from "react";
 import { toast } from "sonner";
@@ -14,10 +14,10 @@ import { appChain } from "@/lib/wagmi";
 export type Side = "buy" | "sell";
 
 /** Onchain reads only make sense with deployed contracts. */
-export const LIVE = config.deployment.launchpad !== zeroAddress;
+export const LIVE = config.deployment.launcher !== zeroAddress;
 /** Quote / state refresh — Robinhood Chain blocks are ~0.1 s, the RPC is polled every ~2 s. */
 export const REFRESH_MS = 2_000;
-export const LAUNCHPAD = config.deployment.launchpad;
+export const PONS_FACTORY = PONS_V2.factory as Address;
 export const DEADLINE_SECONDS = 300;
 
 export const deadlineFromNow = () => BigInt(Math.floor(Date.now() / 1000) + DEADLINE_SECONDS);
@@ -64,26 +64,49 @@ export function toInputString(amount: bigint, decimals = 18, places = 6): string
   return frac ? `${whole}.${frac}` : whole.toString();
 }
 
-/**
- * Live coin state from `coinInfo(coin)` (current creator, unclaimed creator fees in the coin's asset), falling back
- * to the indexer's fields until the read lands.
- */
-export function useCoinInfo(token: TokenDetail) {
+/** Live Pons phase of a coin (curve → graduating → pool), falling back to the indexer's until the read lands. */
+export function usePhase(token: TokenDetail): { phase: CoinPhase; refetch: () => void } {
   const { data, refetch } = useReadContract({
-    address: LAUNCHPAD,
-    abi: launchpadAbi,
-    functionName: "coinInfo",
+    address: PONS_FACTORY,
+    abi: ponsFactoryAbi,
+    functionName: "getLaunchedToken",
     args: [token.address],
     query: { enabled: LIVE, refetchInterval: REFRESH_MS * 2 },
   });
-  const known = !!data && data.creator !== zeroAddress;
-  const fallbackFees = BigInt(token.creatorFeesAccrued) - BigInt(token.creatorFeesClaimed);
+  return { phase: data?.exists ? coinPhase(data.phase) : token.phase, refetch: () => void refetch() };
+}
+
+/**
+ * Live state of the coin's TwainFeeVault: current creator and the creator's fees in the pair asset — split and owed,
+ * plus what a harvest would add (escrow credits and unsplit balance × 60%). Falls back to the indexer's fields.
+ */
+export function useVault(token: TokenDetail) {
+  const vault = token.vault;
+  const asset = token.asset.address;
+  const q = { enabled: LIVE, refetchInterval: REFRESH_MS * 2 };
+  const creator = useReadContract({ address: vault, abi: twainFeeVaultAbi, functionName: "creator", query: q });
+  const owed = useReadContract({ address: vault, abi: twainFeeVaultAbi, functionName: "creatorOwed", args: [asset], query: q });
+  const pending = useReadContract({ address: vault, abi: twainFeeVaultAbi, functionName: "pending", args: [asset], query: q });
+  // Before graduation the creator side also sits in the curve until its next sweep (a claim sweeps it first).
+  const onCurve = { enabled: LIVE && token.phase === "curve", refetchInterval: REFRESH_MS * 2 };
+  const feeBal = useReadContract({ address: token.curve, abi: ponsCurveAbi, functionName: "quoteFeeBalance", query: onCurve });
+  const taxBal = useReadContract({ address: token.curve, abi: ponsCurveAbi, functionName: "creatorTaxBalance", query: onCurve });
+  const inCurve = feeBal.data !== undefined && taxBal.data !== undefined ? curveCreatorSide(feeBal.data, taxBal.data) : 0n;
+  const fallback = BigInt(token.creatorFeesAccrued) - BigInt(token.creatorFeesClaimed);
+  const live = owed.data !== undefined && pending.data !== undefined;
   return {
-    creator: (known ? data.creator : token.creator) as Address,
-    /** Collected and not yet claimed, in the coin's asset. */
-    creatorFees: known ? data.creatorFees : fallbackFees > 0n ? fallbackFees : 0n,
-    live: known,
-    refetch,
+    vault,
+    creator: (creator.data ?? token.creator) as Address,
+    /** Owed to the creator now plus their share of what a claim would bring in (escrow + curve), in the pair asset. */
+    creatorFees: live ? owed.data! + ((pending.data! + inCurve) * CREATOR_FEE_SHARE) / 100n : fallback > 0n ? fallback : 0n,
+    live,
+    refetch: () => {
+      void creator.refetch();
+      void owed.refetch();
+      void pending.refetch();
+      void feeBal.refetch();
+      void taxBal.refetch();
+    },
   };
 }
 

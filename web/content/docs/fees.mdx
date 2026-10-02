@@ -1,35 +1,42 @@
-import { Callout, FeeExamples } from "@/components/docs/blocks";
+import { PARAMS } from "@twain/shared";
+import { Callout, FeeExamples, FeeSplit, NUM } from "@/components/docs/blocks";
 
-Every trade in a coin's pool pays the pool 1%. The locked position earns all of it, and the split is fixed in the contracts, the same for every coin:
+Every trade of a twain coin pays {PARAMS.tradeFeePct} of its value, on the launch curve and in the Uniswap pool alike: a {PARAMS.ponsFeePct} Pons fee and a {PARAMS.creatorTaxPct} creator tax. The rates are set when the coin launches, they are the same for every twain coin, and nobody can change them for a coin that is live.
 
-- **0.6%** to the coin's creator
-- **0.4%** to the protocol
+There is no fee to twain for launching. Pons charges a small launch fee in ETH, shown in the form before you sign.
 
-There is no launch fee. Creating a coin costs only gas.
+## Where it goes
+
+<FeeSplit />
+
+Pons keeps {NUM.ponsKeepsOfFee} of its fee. The other {NUM.vaultGetsOfFee}, and the whole creator tax, go to the coin's fee vault: {NUM.vault} of trading volume. The vault splits everything it receives {NUM.creatorSplit} to the creator and {NUM.twainSplit} to twain.
+
+The snipe tax on buys in the first {PARAMS.snipeWindow} is added to the Pons fee and split the same way.
 
 ## In which currency
 
-A pool fee is paid in what goes into the pool. A buy pays it in the coin's asset (ETH, a stock token, …); a sell pays it in the coin.
+Fees are taken from the asset side of every trade: a buy pays them out of the asset it brings, a sell out of the asset it receives. So fees are always paid in the coin's pair asset: ETH for a coin paired with ETH, a stock token for a coin paired with that stock.
 
-- **The asset side** is credited on the launchpad: 60% to the creator's claimable balance, 40% to the protocol's.
-- **The coin side** goes out directly: 60% to the creator's wallet, 40% to the protocol's treasury.
+## The fee vault
 
-Fees sit in the pool until someone collects them from the locker. Anyone can trigger a collection; a creator's claim does it automatically.
+Each coin has its own fee vault, a small twain contract created in the launch transaction. At Pons it is the coin's creator fee recipient: Pons credits the creator's share of every trade to it. The vault has no owner and no upgrade path. It keeps the creator's balance and twain's balance apart, and pays each side only its own.
 
 ## Claiming
 
-Creator fees in the asset build up as a balance, and the creator claims them when they like, from [Profile → Creator fees](/profile#creator-fees) or the coin's page. A claim collects what is still in the pool and pays everything in one transaction, each coin in its own asset. Trades only add to what the pool owes, so a payment to a broken or hostile address can never block anyone's trade.
+Creators claim from [Profile → Creator fees](/profile#creator-fees) or from the coin's page. A claim pulls in what Pons has credited to the vault, splits it, and pays the creator in one transaction, each coin in its own pair asset.
 
-A creator can hand the role to another wallet. Unclaimed fees go with it.
+Anyone may trigger a claim, but the money always goes to the creator, never to whoever sent the transaction.
+
+A creator can hand the role to another address by calling `transferCreator` on the coin's vault. Unclaimed fees, and all future ones, go with it.
 
 ## What that adds up to
 
 <FeeExamples />
 
-A coin that people keep trading keeps paying. The best thing a creator can do is stay, and that is the only behaviour a launchpad should reward.
+A coin that people keep trading keeps paying its creator. The best thing a creator can do is stay, and that is the behaviour these fees reward.
 
-<Callout title="Where the protocol's share goes">
+<Callout title="Where twain's share goes">
 
-The protocol's share goes to a treasury address. The owner can change that address, and that is all: no fee, split or rate can be changed. See [Contracts](/docs/contracts#admin-powers).
+twain's {NUM.twainSplit} is paid to a treasury address set on the twain launcher. twain's owner can change that address, but not any rate, split or vault. Pons can redirect a coin's creator fee recipient after a public 3-day notice; see [Contracts](/docs/contracts#who-controls-what).
 
 </Callout>

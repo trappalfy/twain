@@ -1,18 +1,12 @@
 /**
- * Off-chain token metadata (JSON written by the web create flow):
- *   {"name","symbol","description","image","x","telegram","website"}
- * Copied from indexer/src/lib/metadata.ts. Fetched after TokenCreated with a 5 s timeout and a 256 KB cap;
- * a failed fetch returns null so the sync retries it on a later pass.
- * Only ipfs:// (via gateway) and public https:// URLs are fetched — the URI is user-supplied, so no
- * plain http, no localhost / IP-literal hosts (keeps the indexer from being pointed at internal services).
+ * Display metadata of a coin. Pons V2 launcher tokens keep their logo, description and socials onchain
+ * (getTokenInfo), so nothing is fetched: the indexer reads them once at launch and normalises them here.
+ * The logo is an ipfs:// URI (resolved through the gateway) or an https URL; anything else is dropped.
  */
 import type { TokenMeta } from "@twain/shared";
 import { config } from "@/lib/config";
 
 const GATEWAY = config.ipfsGateway.replace(/\/*$/, "/");
-const TIMEOUT_MS = 5_000;
-const MAX_BYTES = 256 * 1024;
-const MAX_REDIRECTS = 3;
 
 export const EMPTY_META: TokenMeta = { description: null, image: null, x: null, telegram: null, website: null };
 
@@ -28,73 +22,6 @@ export function resolveUri(uri: string): string | null {
   }
   if (CID_RE.test(u)) return GATEWAY + u;
   if (/^https?:\/\//i.test(u)) return u;
-  return null;
-}
-
-/** Local dev only: lets the indexer read metadata served by the web app's local upload store. */
-const ALLOW_LOCAL_METADATA = process.env.NODE_ENV !== "production" || process.env.ALLOW_LOCAL_METADATA === "true";
-
-function isFetchable(raw: string): boolean {
-  let url: URL;
-  try {
-    url = new URL(raw);
-  } catch {
-    return false;
-  }
-  if (ALLOW_LOCAL_METADATA && ["localhost", "127.0.0.1"].includes(url.hostname)) return true;
-  if (url.protocol !== "https:") return false;
-  const host = url.hostname.toLowerCase();
-  if (host === "localhost" || host.endsWith(".localhost") || host.endsWith(".local") || host.endsWith(".internal")) {
-    return false;
-  }
-  if (/^\d+\.\d+\.\d+\.\d+$/.test(host) || host.startsWith("[") || host.includes(":")) return false;
-  return true;
-}
-
-async function readCapped(res: Response): Promise<string | null> {
-  const declared = Number(res.headers.get("content-length") ?? 0);
-  if (declared > MAX_BYTES || !res.body) return null;
-  const reader = res.body.getReader();
-  const chunks: Uint8Array[] = [];
-  let total = 0;
-  for (;;) {
-    const { done, value } = await reader.read();
-    if (done) break;
-    total += value.byteLength;
-    if (total > MAX_BYTES) {
-      await reader.cancel().catch(() => {});
-      return null;
-    }
-    chunks.push(value);
-  }
-  const buf = new Uint8Array(total);
-  let off = 0;
-  for (const c of chunks) {
-    buf.set(c, off);
-    off += c.byteLength;
-  }
-  return new TextDecoder().decode(buf);
-}
-
-async function fetchJson(uri: string): Promise<unknown> {
-  let url = resolveUri(uri);
-  const signal = AbortSignal.timeout(TIMEOUT_MS);
-  for (let hop = 0; hop <= MAX_REDIRECTS && url; hop++) {
-    if (!isFetchable(url)) return null;
-    const res = await fetch(url, { signal, redirect: "manual", headers: { accept: "application/json" } });
-    if (res.status >= 300 && res.status < 400) {
-      const loc = res.headers.get("location");
-      await res.body?.cancel().catch(() => {});
-      url = loc ? new URL(loc, url).toString() : null;
-      continue;
-    }
-    if (!res.ok) {
-      await res.body?.cancel().catch(() => {});
-      return null;
-    }
-    const text = await readCapped(res);
-    return text == null ? null : JSON.parse(text);
-  }
   return null;
 }
 
@@ -132,29 +59,19 @@ function toImage(v: unknown): string | null {
   return url && /^https?:\/\//i.test(url) ? url : null;
 }
 
-export function parseMeta(json: unknown): TokenMeta {
-  if (!json || typeof json !== "object" || Array.isArray(json)) return EMPTY_META;
-  const j = json as Record<string, unknown>;
-  const description = typeof j.description === "string" ? j.description.trim().slice(0, 1000) || null : null;
-  return {
-    description,
-    image: toImage(j.image),
-    x: toSocial(j.x ?? j.twitter, /^@?[A-Za-z0-9_]{1,15}$/, "https://x.com/"),
-    telegram: toSocial(j.telegram, /^@?[A-Za-z0-9_]{5,32}$/, "https://t.me/"),
-    website: toWebUrl(j.website),
-  };
-}
+/** Onchain token info as Pons stores it (PonsV2LauncherToken.getTokenInfo). */
+export type OnchainInfo = {
+  logo: string;
+  description: string;
+  socials: { twitter: string; telegram: string; discord: string; website: string; farcaster: string };
+};
 
-/**
- * Parsed metadata, EMPTY_META when the URI can never be fetched (not ipfs/https, not JSON),
- * or null on a transient failure (timeout, network, gateway error) — worth retrying later.
- */
-export async function fetchMetadata(uri: string): Promise<TokenMeta | null> {
-  if (!resolveUri(uri)) return EMPTY_META;
-  try {
-    const json = await fetchJson(uri);
-    return json == null ? null : parseMeta(json);
-  } catch (err) {
-    return err instanceof SyntaxError ? EMPTY_META : null;
-  }
+export function parseMeta(info: OnchainInfo): TokenMeta {
+  return {
+    description: info.description.trim().slice(0, 1000) || null,
+    image: toImage(info.logo),
+    x: toSocial(info.socials.twitter, /^@?[A-Za-z0-9_]{1,15}$/, "https://x.com/"),
+    telegram: toSocial(info.socials.telegram, /^@?[A-Za-z0-9_]{5,32}$/, "https://t.me/"),
+    website: toWebUrl(info.socials.website),
+  };
 }

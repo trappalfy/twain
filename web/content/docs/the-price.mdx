@@ -1,29 +1,50 @@
-import { Callout, PoolParams, PriceTable } from "@/components/docs/blocks";
+import { PARAMS } from "@twain/shared";
+import { Callout, CurveFacts, FirstBuyTable, NUM, SnipeTaxTable } from "@/components/docs/blocks";
 
-A coin's price is set by its pool and nothing else. There is no order book and no listing price to negotiate: the pool quotes every trade from what it holds.
+A coin's price is set by its launch curve, later by its Uniswap pool, and by nothing else. There is no order book and no listing price to negotiate: the curve quotes every trade from what it holds.
 
-## How the pool starts
+## How the curve works
 
-At launch the pool holds the coin's whole supply and none of the asset. Its liquidity is one position that starts exactly at the asset's [start market cap](/docs/paired-assets#the-start-market-cap) and reaches to the top of Uniswap's price range. The launch puts no liquidity below the start price: selling every coin bought from the pool brings the price back to where it started, not lower. (Anyone can add their own liquidity to a Uniswap pool at any price; only liquidity added that way could take the price below the start.)
+At launch, the coin's whole supply sits on its own Pons curve. The curve prices it with the constant-product rule, x · y = k, as if it also held a reserve of the pair asset from the start. That reserve is virtual: nobody paid it in, and nobody can take it out. It only sets the [start market cap](/docs/paired-assets#start-market-cap-and-curve-size).
 
-<PoolParams />
+Every buy adds the asset and takes coins out, so the price goes up; every sell does the opposite. The more the curve has sold, the more each further coin costs.
 
-## How it moves
+Not all of the supply is for sale. The curve keeps part of it back for the Uniswap pool and sells the rest. When the rest is sold out, the curve has raised exactly its target, and the coin [graduates](/docs/liquidity-lock).
 
-Inside that position the pool follows the constant-product rule, x · y = k, as if it had held the start market cap in the asset all along. Every buy adds the asset and takes coins out, so the price goes up; every sell does the opposite. The more the pool has sold, the more each further coin costs.
+For a coin paired with ETH, on today's terms:
 
-Here is what a first buy does to a fresh coin paired with ETH:
+<CurveFacts />
 
-<PriceTable />
+Other pairs follow the same shape, sized by Pons in that asset's units. The Create page shows the numbers for each asset.
 
-The same holds for any asset, in its own units.
+## What a first buy does
 
-## Where to trade
+Here is what a single buy does to a fresh coin paired with ETH, after the {PARAMS.tradeFeePct} fee:
 
-The pool is a plain Uniswap v4 pool with no hook: a pair of the coin and its asset, a 1% fee and a fixed tick spacing. Anything that trades Uniswap v4 can trade it from the block it opens in: this site, aggregators, wallets, trading bots and the Uniswap app.
+<FirstBuyTable />
+
+A buy that asks for more than the curve has left gets everything that is left, and the rest of its payment is refunded in the same transaction. The creator's first buy, made in the launch transaction, is exactly such a first trade on a fresh curve.
+
+## The snipe tax
+
+Bots try to buy in the first moments of a launch. For the first {PARAMS.snipeWindow}, every buy on the curve pays an extra snipe tax on top of the usual fees. It starts at about {NUM.snipeStart} of the buy and halves again and again until it reaches zero:
+
+<SnipeTaxTable />
+
+Seconds count from the block time of the launch transaction. The creator's first buy, made in the launch transaction, pays no snipe tax. The tax goes into the coin's fees and is split like the Pons fee; see [Fees](/docs/fees).
+
+## Selling on the curve
+
+Selling works on the curve for as long as the curve is open. It pays out of what buyers have put in, at the curve's price, minus the {PARAMS.tradeFeePct} fee. Because the start reserve is virtual, selling every coin bought from the curve brings the price back to where it started, not lower.
+
+Once the curve has sold its allocation, it stops trading, and the coin moves into its pool.
+
+## In the pool
+
+After graduation, the coin's Uniswap v4 pool opens at the curve's last price and follows the same constant-product rule from there, with real liquidity on both sides. The pool's liquidity covers the full price range, so in the pool the price can fall below where the curve started if holders sell. See [Graduation and lock](/docs/liquidity-lock).
 
 <Callout title="Previews and slippage">
 
-The site quotes every trade with Uniswap's own quoter before you sign, and shows the price impact. Slippage protects you from a price worse than you accepted, not from a price that keeps falling.
+The site quotes every trade before you sign, on the curve with the curve's own math and in the pool with Uniswap's quoter. It shows the fees, the snipe tax if there is one, and the price impact. Slippage protects you from a price worse than you accepted, not from a price that keeps falling.
 
 </Callout>

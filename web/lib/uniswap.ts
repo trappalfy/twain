@@ -7,7 +7,7 @@
  *   { PoolKey poolKey; bool zeroForOne; uint128 amountIn; uint128 amountOutMinimum; uint256 minHopPriceX36; bytes hookData }
  * (minHopPriceX36 was added to single swaps in v4-periphery #516; routers older than 2.1.1 lack it.)
  */
-import { POOL_HOOKS, POOL_LP_FEE, POOL_TICK_SPACING, UNISWAP_V4 } from "@twain/shared";
+import { CREATOR_TAX_BPS, PONS_FEE_BPS, PONS_POOL_FEE, PONS_TICK_SPACING, PONS_V2, UNISWAP_V4 } from "@twain/shared";
 import { universalRouterAbi } from "@twain/shared/abi";
 import { encodeAbiParameters, encodePacked, keccak256, parseAbi, zeroAddress, type Address, type Hex } from "viem";
 
@@ -32,10 +32,10 @@ export const NATIVE_ETH = zeroAddress;
 /** Pool fee in pips (1e6 = 100%). */
 export const POOL_FEE_PIPS = 1_000_000n;
 
-/** PoolKey of a coin's pool: currencies sorted by address (native ETH = address 0 sorts first), no hook. */
+/** PoolKey of a graduated coin's pool: sorted currencies (ETH = address 0 first), fee 0, spacing 200, Pons meme hook. */
 export function coinPoolKey(coin: Address, asset: Address): PoolKey {
-  const [currency0, currency1] = BigInt(asset) < BigInt(coin) ? [asset, coin] : [coin, asset];
-  return { currency0, currency1, fee: POOL_LP_FEE, tickSpacing: POOL_TICK_SPACING, hooks: POOL_HOOKS as Address };
+  const [currency0, currency1] = coin.toLowerCase() < asset.toLowerCase() ? [coin, asset] : [asset, coin];
+  return { currency0, currency1, fee: PONS_POOL_FEE, tickSpacing: PONS_TICK_SPACING, hooks: PONS_V2.memeHook as Address };
 }
 
 const POOL_KEY_COMPONENTS = [
@@ -129,16 +129,19 @@ export const UNISWAP = UNISWAP_V4;
 
 const Q192 = 1n << 192n;
 
+/** The Pons meme hook takes its fee + the creator tax from every swap of a graduated twain coin: 2%, as pips. */
+export const HOOK_CUT_PIPS = (PONS_FEE_BPS + CREATOR_TAX_BPS) * 100n;
+
 /**
- * Price impact of an exact-input swap in bps: shortfall of `amountOut` against the spot price after the pool fee.
- * sqrtPriceX96 is currency1 per currency0.
+ * Price impact of an exact-input swap in bps: shortfall of `amountOut` against the spot price after the swap fees
+ * (here the hook's cut). sqrtPriceX96 is currency1 per currency0.
  */
 export function poolImpactBps({
   sqrtPriceX96,
   zeroForOne,
   amountIn,
   amountOut,
-  feePips = BigInt(POOL_LP_FEE),
+  feePips = HOOK_CUT_PIPS,
 }: {
   sqrtPriceX96: bigint;
   zeroForOne: boolean;

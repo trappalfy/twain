@@ -1,5 +1,5 @@
-import { COPY } from "@twain/shared";
-import { Question, QuestionList } from "@/components/docs/blocks";
+import { COPY, PARAMS } from "@twain/shared";
+import { NUM, Question, QuestionList } from "@/components/docs/blocks";
 
 ## Launching
 
@@ -7,25 +7,33 @@ import { Question, QuestionList } from "@/components/docs/blocks";
 
 <Question q="What does it cost to launch a coin?">
 
-Gas only. There is no launch fee. If you also buy your own coin in the launch transaction, that buy is a normal pool buy with the 1% fee.
+Pons' launch fee in ETH, plus gas. The form shows the current fee before you sign. twain charges nothing for the launch itself.
+
+If you also buy your own coin in the launch transaction, that buy is a normal curve buy: it pays the {PARAMS.tradeFeePct} fee, but no snipe tax.
 
 </Question>
 
 <Question q="Which asset should I pair my coin with?">
 
-Any asset on the list works the same way. The pair decides what buyers pay with and what your fees are paid in: a coin paired with a stock token earns its fees in that stock token. See [Paired assets](/docs/paired-assets).
+Any asset on the list works the same way. The pair decides what buyers pay with and what fees are paid in: a coin paired with a stock token earns its creator fees in that stock token. See [Paired assets](/docs/paired-assets).
+
+</Question>
+
+<Question q="Why does twain launch through Pons?">
+
+Pons V2 is an open launch protocol on Robinhood Chain with a launch curve, an automatic move into Uniswap and a permanent liquidity lock. twain uses it as it is and adds its own fee vault, so every twain coin is also a standard Pons coin that any app following Pons launches can see and trade.
 
 </Question>
 
 <Question q="Can a creator get coins for free?">
 
-No. There are no allocations of any kind. A creator who wants to hold their coin buys it from the pool, at the pool's price, like everyone else. The launch lets the creator buy first, in the same transaction.
+No. There are no allocations of any kind. A creator who wants to hold their coin buys it from the curve, at the curve's price, like everyone else. The launch lets the creator buy first, in the same transaction, without the snipe tax.
 
 </Question>
 
 <Question q="Can I change the name, ticker, supply or pair after launch?">
 
-No. The name, ticker and supply are fixed in the coin's contract, and the pair is fixed by its pool.
+No. The name, ticker, logo, description, links and supply are fixed in the coin's contract, and the pair is fixed by its curve and its pool.
 
 </Question>
 
@@ -37,13 +45,19 @@ No. The name, ticker and supply are fixed in the coin's contract, and the pair i
 
 <Question q="Where can I trade a coin?">
 
-Anywhere that trades Uniswap v4: this site, aggregators, wallets, bots and the Uniswap app. The pool exists from the launch transaction on.
+While it is on its launch curve: on this site, or through any app that trades Pons curves. After graduation: anywhere that trades Uniswap v4, such as this site, aggregators, wallets and trading bots.
 
 </Question>
 
-<Question q="Why do I approve twice when I pay with a token?">
+<Question q="What is the snipe tax?">
 
-Uniswap takes tokens through its Permit2 contract. The first approval lets Permit2 handle the token, once; the second lets Uniswap's router spend this amount. Paying with native ETH needs neither.
+An extra tax on buys in the first {PARAMS.snipeWindow} after a launch. It starts at about {NUM.snipeStart} of the buy and falls to zero. It makes buying with a bot in the launch second costly. The creator's first buy in the launch transaction pays none. See [The launch curve](/docs/the-price#the-snipe-tax).
+
+</Question>
+
+<Question q="Why do I approve a token before paying with it?">
+
+On the launch curve, you approve the curve once to take the token. In the Uniswap pool, Uniswap takes tokens through its Permit2 contract: the first approval lets Permit2 handle the token, once; the second lets Uniswap's router spend this amount. Paying with native ETH needs neither.
 
 </Question>
 
@@ -55,25 +69,37 @@ The small number counts the zeros after the decimal point. 0.0₇393 ETH is 0.00
 
 <Question q="How is market cap calculated?">
 
-Price times the full supply of 1,000,000,000, in the coin's asset. Dollar values use the asset's current price and are approximate.
+Price times the full supply of {PARAMS.supply}, in the coin's asset. Dollar values use the asset's current price and are approximate.
 
 </Question>
 
 </QuestionList>
 
-## The pool
+## The curve and the pool
 
 <QuestionList>
 
+<Question q="When does a coin move to Uniswap?">
+
+When its launch curve has sold everything it was selling. For a coin paired with ETH on today's terms, that is when the curve has raised {NUM.ethRaise}, at a market cap of about {NUM.ethGradMcap}. Pons' keeper usually completes the move within seconds; if it is still pending, the coin's page shows a button anyone can use. See [Graduation and lock](/docs/liquidity-lock).
+
+</Question>
+
+<Question q="What if a curve never sells out?">
+
+Then the coin keeps trading on its curve. There is no deadline: it moves to Uniswap only once the curve has sold its allocation.
+
+</Question>
+
 <Question q="Can anyone remove the liquidity?">
 
-No. The position belongs to the locker, which can only collect fees. It has no withdraw function, no owner, and cannot be upgraded. See [Liquidity lock](/docs/liquidity-lock).
+No. After graduation the pool position belongs to Pons' launch locker, which has no withdraw function and cannot be upgraded. Neither twain, Pons nor the creator can take it out. See [Graduation and lock](/docs/liquidity-lock#the-lock).
 
 </Question>
 
 <Question q="Can the price go below the start?">
 
-Not through the launch liquidity: it starts at the start price, so selling every coin bought from the pool brings the price back to the start, not lower. Anyone can add their own liquidity to a Uniswap pool at any price, and only that could take it lower. The price in dollars can also fall if the paired asset falls.
+On the curve, no: selling every coin bought from the curve brings the price back to the start, not lower. In the Uniswap pool, yes: the pool's liquidity covers every price, so if enough holders sell, the price can fall below where the curve started. The price in dollars can also fall if the paired asset falls.
 
 </Question>
 
@@ -85,19 +111,19 @@ Not through the launch liquidity: it starts at the start price, so selling every
 
 <Question q="How do creators claim their fees?">
 
-From [Profile → Creator fees](/profile#creator-fees) or the coin's page. A claim collects the fees still in the pool and pays them in one transaction.
+From [Profile → Creator fees](/profile#creator-fees) or the coin's page. A claim pulls in what Pons has credited to the coin's fee vault and pays the creator's share in one transaction, in the pair asset. See [Fees](/docs/fees#claiming).
 
 </Question>
 
 <Question q="Can the fees or the rules change?">
 
-No. Every parameter is fixed in the contracts. The owner can only change the treasury address, pause the creation of new coins and manage the asset list for new coins. See [Admin powers](/docs/contracts#admin-powers).
+Not for a coin that is live: its fees, tax, curve and pool stay as they were at launch. twain's owner can only pause new launches through twain and change where twain's share goes. Pons can change its terms for new launches, and can redirect a live coin's creator fee recipient after a public 3-day timelock. See [Who controls what](/docs/contracts#who-controls-what).
 
 </Question>
 
 <Question q="Can anyone stop me from selling?">
 
-No contract function here can pause trading. Robinhood Chain's operator runs the sequencer and can delay or filter transactions, and an asset's issuer controls that asset's contract; see [Risks](/docs/risks).
+No contract here has a function that pauses trading. A curve stops trading only when it sells out, and the coin then trades in its pool. Robinhood Chain's operator runs the sequencer and can delay or filter transactions, and an asset's issuer controls that asset's contract; see [Risks](/docs/risks).
 
 </Question>
 

@@ -1,8 +1,8 @@
-/** Protocol constants — must mirror contracts/src/Constants.sol exactly. */
+/** Protocol constants — must mirror contracts/src/Constants.sol, TwainLauncher and the Pons V2 launch config. */
 export const DECIMALS = 18;
 export const WAD = 10n ** 18n;
 
-/** Every coin: 1,000,000,000 units with 18 decimals, all of it in its pool from the first block. */
+/** Every coin: 1,000,000,000 units with 18 decimals, minted to its Pons curve at launch. */
 export const TOTAL_SUPPLY = 1_000_000_000n * WAD;
 export const TOTAL_SUPPLY_WHOLE = 1_000_000_000n;
 
@@ -16,21 +16,26 @@ export const MIN_USABLE_TICK = -887_200;
 export const MAX_USABLE_TICK = 887_200;
 export const POOL_HOOKS = "0x0000000000000000000000000000000000000000";
 
-/** Pool fees: 60% to the coin's creator, 40% to the protocol. */
+/** The coin's vault splits everything it receives: 60% to the creator, 40% to twain (contracts/src/Constants.sol). */
 export const CREATOR_FEE_SHARE = 60n;
 export const PROTOCOL_FEE_SHARE = 40n;
 
 /** Native ETH as an asset (address zero, sorts first in every pool). */
 export const NATIVE_ASSET = "0x0000000000000000000000000000000000000000";
 
-/** Human-readable parameter table (UI, docs, OG). */
+/**
+ * Human-readable parameter table (UI, docs, OG). Per trade, on the quote side: 1% Pons fee + 1% creator tax = 2%.
+ * The vault gets 70% of the Pons fee + the whole tax = 1.7%, split 60/40 → creator 1.02%, twain 0.68%.
+ */
 export const PARAMS = {
   supply: "1,000,000,000",
-  poolFeePct: "1%",
-  creatorFeePct: "0.6%",
-  protocolFeePct: "0.4%",
+  tradeFeePct: "2%",
+  ponsFeePct: "1%",
+  creatorTaxPct: "1%",
+  creatorEarnsPct: "1.02%",
+  twainEarnsPct: "0.68%",
   feeSplit: "60/40",
-  launchFeeEth: "0",
+  snipeWindow: "3 seconds",
 } as const;
 
 export const TOKEN_LIMITS = {

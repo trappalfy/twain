@@ -1,4 +1,4 @@
-import { COPY, PARAMS, formatAsset, formatUsd, mcapFromPriceX18, startPriceX18, type ListedAsset } from "@twain/shared";
+import { COPY, PARAMS, formatAsset, formatEth, formatUsd, type ListedAsset } from "@twain/shared";
 import { Globe, Image as ImageIcon } from "lucide-react";
 import type { ReactNode } from "react";
 import { AssetIcon } from "@/components/common";
@@ -15,19 +15,23 @@ export type PreviewData = {
   telegram: string | null;
   website: string | null;
   asset: ListedAsset | null;
+  launchFee: bigint | null;
 };
 
-function rows(asset: ListedAsset | null): { label: string; value: ReactNode; sub?: string }[] {
-  const startMcap = asset ? mcapFromPriceX18(startPriceX18(asset.startTick)) : null;
-  const startUsd = asset && startMcap !== null && asset.usd != null ? (Number(startMcap) / 10 ** asset.decimals) * asset.usd : null;
+const usdOf = (amount: string, asset: ListedAsset) => (asset.usd == null ? null : (Number(amount) / 10 ** asset.decimals) * asset.usd);
+
+function rows(asset: ListedAsset | null, launchFee: bigint | null): { label: string; value: ReactNode; sub?: string }[] {
+  const startUsd = asset ? usdOf(asset.startMcap, asset) : null;
+  const gradUsd = asset ? usdOf(asset.graduationMcap, asset) : null;
   return [
     {
       label: "Launch fee",
       value: (
         <span className="inline-flex items-center gap-1.5">
-          {PARAMS.launchFeeEth} ETH <EthIcon size={14} />
+          {launchFee !== null ? formatEth(launchFee) : "—"} <EthIcon size={14} />
         </span>
       ),
+      sub: "paid to Pons",
     },
     {
       label: "Paired with",
@@ -41,13 +45,21 @@ function rows(asset: ListedAsset | null): { label: string; value: ReactNode; sub
     },
     {
       label: "Start market cap",
-      value: asset && startMcap !== null ? formatAsset(startMcap, asset) : "—",
+      value: asset ? formatAsset(asset.startMcap, asset) : "—",
       sub: startUsd !== null ? `≈ ${formatUsd(startUsd)}` : undefined,
     },
-    { label: "Pool fee", value: PARAMS.poolFeePct, sub: `${PARAMS.creatorFeePct} creator · ${PARAMS.protocolFeePct} protocol` },
-    { label: "Supply", value: PARAMS.supply, sub: "no allocations, all in the pool" },
-    { label: "Trading", value: "Uniswap v4, from block one" },
-    { label: "Liquidity", value: "Locked forever" },
+    {
+      label: "Moves to Uniswap at",
+      value: asset ? formatAsset(asset.graduationMcap, asset) : "—",
+      sub: gradUsd !== null ? `≈ ${formatUsd(gradUsd)} market cap` : "market cap",
+    },
+    {
+      label: "Fee per trade",
+      value: PARAMS.tradeFeePct,
+      sub: `${PARAMS.ponsFeePct} Pons fee · ${PARAMS.creatorTaxPct} creator tax`,
+    },
+    { label: "You earn", value: PARAMS.creatorEarnsPct, sub: "of every trade's volume" },
+    { label: "Supply", value: PARAMS.supply, sub: "no allocations" },
   ];
 }
 
@@ -98,7 +110,7 @@ export function TokenPreview({ data }: { data: PreviewData }) {
       )}
 
       <dl className="mt-6 border-t border-border">
-        {rows(data.asset).map((r) => (
+        {rows(data.asset, data.launchFee).map((r) => (
           <div key={r.label} className="flex items-baseline justify-between gap-4 border-b border-border py-3">
             <dt className="text-13 text-muted">{r.label}</dt>
             <dd className="text-right text-sm text-text">

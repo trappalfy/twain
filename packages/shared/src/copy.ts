@@ -11,18 +11,18 @@ export const COPY = {
   },
   explore: {
     title: "Explore",
-    subtitle: "Every coin trades in its own Uniswap pool from the first block.",
+    subtitle: "Every coin starts on its own launch curve, then moves into a locked Uniswap pool.",
     empty: "No coins yet. Be the first to launch.",
     searchPlaceholder: "Search coins",
   },
   create: {
     title: "Launch coin",
-    pairedHelper: "Your coin's pool pairs it with this asset. The pair cannot change later.",
-    devBuyHelper: (balance: string) => `${balance} in wallet. You buy first, in the launch transaction, at the pool price.`,
+    pairedHelper: "Your coin trades against this asset: first on its launch curve, then in a Uniswap pool. The pair cannot change later.",
+    devBuyHelper: (balance: string) => `${balance} in wallet. You buy first, in the launch transaction, at the start price.`,
     summary: (fee: string) => `${fee} ETH launch fee + gas`,
     approveHint: (symbol: string) => `Approve ${symbol} once so the launch can make your first buy.`,
     needDetails: "Add a name and ticker",
-    success: "Launched. Your coin is live on Uniswap.",
+    success: "Launched. Your coin is live.",
     previewEmptyName: "Your coin",
     previewEmptyTicker: "ticker",
   },
@@ -51,7 +51,7 @@ export const COPY = {
   },
   notFound: "This page was never launched.",
   footer: {
-    description: `Launch a coin paired with any asset, from memes to tokenized stocks. Every coin follows the same rules: ${PARAMS.supply} supply, all of it in a Uniswap pool locked for good. You sign every transaction, and no admin key can move your funds.`,
+    description: `Launch a coin paired with ETH or a tokenized stock on Robinhood Chain. Every coin follows the same rules: ${PARAMS.supply} supply, a launch curve first, then a Uniswap pool with its liquidity locked forever. You sign every transaction, and the site never holds your funds.`,
     riskTitle: "Risk notice",
     risk:
       "You sign every transaction yourself, and a confirmed transaction cannot be undone. Coins here are launched by their users, not by this site, and can lose all of their value. Nothing on this site is custody, a guarantee, or financial advice.",
@@ -64,6 +64,6 @@ export const COPY = {
     AssetNotEnabled: "This asset is not open for new launches.",
     UserRejected: "Signature declined in wallet.",
   },
-  og: ["Pair your coin with anything.", "How pairing works"],
-  audit: "The contracts are open source and verified, but have not been externally audited.",
+  og: ["Pair your coin with ETH or a stock.", "How twain works"],
+  audit: "twain's contracts are open source and verified, but have not been externally audited.",
 } as const;

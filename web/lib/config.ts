@@ -8,8 +8,7 @@ const bannerId = process.env.NEXT_PUBLIC_BANNER_ID || "";
 const bannerTitle = process.env.NEXT_PUBLIC_BANNER_TITLE || "";
 const bannerText = process.env.NEXT_PUBLIC_BANNER_TEXT || "";
 const deployment = getDeployment({
-  NEXT_PUBLIC_LAUNCHPAD: process.env.NEXT_PUBLIC_LAUNCHPAD,
-  NEXT_PUBLIC_LOCKER: process.env.NEXT_PUBLIC_LOCKER,
+  NEXT_PUBLIC_LAUNCHER: process.env.NEXT_PUBLIC_LAUNCHER,
   NEXT_PUBLIC_START_BLOCK: process.env.NEXT_PUBLIC_START_BLOCK,
 });
 
@@ -18,10 +17,10 @@ export const config = {
   rpcUrl: process.env.NEXT_PUBLIC_RPC_URL || robinhood.rpcUrls.default.http[0],
   siteUrl: (process.env.NEXT_PUBLIC_SITE_URL || "http://localhost:3000").replace(/\/+$/, ""),
   /**
-   * Contracts not deployed yet (no launchpad address): nothing can exist onchain, so the data layer answers locally
+   * Contracts not deployed yet (no launcher address): nothing can exist onchain, so the data layer answers locally
    * with empty lists and zero stats instead of calling the indexer (lib/prelaunch.ts).
    */
-  prelaunch: /^0x0{40}$/.test(deployment.launchpad),
+  prelaunch: /^0x0{40}$/.test(deployment.launcher),
   heroLiveStats: process.env.NEXT_PUBLIC_HERO_LIVE_STATS === "true",
   /** null when the banner is off (no title and no text). */
   banner: bannerTitle || bannerText ? { id: bannerId || `${bannerTitle}|${bannerText}`, title: bannerTitle, text: bannerText } : null,

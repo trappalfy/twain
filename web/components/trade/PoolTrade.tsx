@@ -1,6 +1,6 @@
 "use client";
 
-import { applySlippage, COPY, formatAsset, formatTokens, PARAMS, POOL_LP_FEE, UNISWAP_V4, type TokenDetail } from "@twain/shared";
+import { applySlippage, COPY, formatAsset, formatTokens, PARAMS, UNISWAP_V4, type TokenDetail } from "@twain/shared";
 import { permit2Abi, stateViewAbi, tokenAbi, v4QuoterAbi } from "@twain/shared/abi";
 import { useMemo, useState } from "react";
 import { maxUint256, zeroAddress, type Address, type Hash } from "viem";
@@ -10,6 +10,7 @@ import { useTx } from "@/lib/tx";
 import {
   coinPoolKey,
   encodeExactInSingle,
+  HOOK_CUT_PIPS,
   PERMIT2_EXPIRATION_SECONDS,
   POOL_FEE_PIPS,
   poolIdOf,
@@ -22,7 +23,7 @@ import { Notice, resolveAction, TradeForm, type QuoteRow } from "./TradeForm";
 
 const ROUTER = UNISWAP_V4.universalRouter;
 const PERMIT2 = UNISWAP_V4.permit2;
-const FEE_LABEL = `Pool fee (${PARAMS.poolFeePct})`;
+const FEE_LABEL = `Fees (${PARAMS.tradeFeePct})`;
 
 /** Map Universal Router / Permit2 reverts to plain text before the standard toast flow sees them. */
 async function withPoolErrors(send: () => Promise<Hash>): Promise<Hash> {
@@ -39,7 +40,8 @@ async function withPoolErrors(send: () => Promise<Hash>): Promise<Hash> {
 }
 
 /**
- * Buy / sell a coin in its Uniswap v4 pool through the Universal Router. Buy = asset → coin, sell = coin → asset.
+ * Buy / sell a graduated coin in its Uniswap v4 pool (Pons meme hook) through the Universal Router. The hook takes the
+ * Pons fee and the creator tax (2%) out of the output; the V4 quoter already returns the amount after that cut. Buy = asset → coin, sell = coin → asset.
  * Native ETH goes in as msg.value; any ERC-20 input (the coin, or an asset such as a stock token) goes through
  * Permit2: approve it for Permit2 once, then allow the router for this amount.
  */
@@ -101,11 +103,11 @@ export function PoolTrade({ token, side, slippageBps }: { token: TokenDetail; si
     out !== null && debounced && slot0.data
       ? poolImpactBps({ sqrtPriceX96: slot0.data[0], zeroForOne, amountIn: debounced, amountOut: out })
       : null;
-  const fee = debounced ? (debounced * BigInt(POOL_LP_FEE)) / POOL_FEE_PIPS : null;
+  // Exact input: the hook's cut comes out of the output, so it is `out` grossed up by the cut, minus `out`.
+  const fee = out !== null ? (out * HOOK_CUT_PIPS) / (POOL_FEE_PIPS - HOOK_CUT_PIPS) : null;
   const minOut = out !== null ? applySlippage(out, slippageBps) : null;
 
   const fmtOut = (v: bigint) => (side === "buy" ? formatTokens(v, sym) : formatAsset(v, asset));
-  const fmtIn = (v: bigint) => (side === "buy" ? formatAsset(v, asset) : formatTokens(v, sym));
   const rows: QuoteRow[] = [
     { label: "You receive", value: out !== null ? fmtOut(out) : "—" },
     {
@@ -113,7 +115,7 @@ export function PoolTrade({ token, side, slippageBps }: { token: TokenDetail; si
       value: impact === null ? "—" : formatImpact(impact),
       tone: impact !== null && impact >= IMPACT_WARN_BPS ? "sell" : undefined,
     },
-    { label: FEE_LABEL, value: fee !== null && typed ? fmtIn(fee) : "—" },
+    { label: FEE_LABEL, value: fee !== null && typed ? fmtOut(fee) : "—" },
     { label: "Min received", value: minOut !== null ? fmtOut(minOut) : "—" },
   ];
 

@@ -153,8 +153,8 @@ function Fees() {
             Fees
           </h2>
           <p className="mt-2 max-w-2xl text-sm text-muted">
-            All time. Every trade pays the pool {PARAMS.poolFeePct}: {PARAMS.creatorFeePct} to the coin&apos;s creator and{" "}
-            {PARAMS.protocolFeePct} to the protocol, in the asset the coin is paired with.
+            All time. Every trade pays {PARAMS.tradeFeePct}: a {PARAMS.ponsFeePct} Pons fee and a {PARAMS.creatorTaxPct} creator tax.
+            Creators earn {PARAMS.creatorEarnsPct} of volume and twain {PARAMS.twainEarnsPct}, in the asset each coin is paired with.
           </p>
         </div>
         <p className="shrink-0 text-13 text-muted">USD at each asset&apos;s current price</p>

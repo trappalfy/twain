@@ -1,7 +1,7 @@
 "use client";
 
-import { CREATOR_FEE_SHARE, PARAMS, assetToUsd, formatAsset, formatUsd, type AccountResponse, type AssetInfo, type Hex } from "@twain/shared";
-import { launchpadAbi, lockerAbi } from "@twain/shared/abi";
+import { CREATOR_FEE_SHARE, PARAMS, assetToUsd, curveCreatorSide, formatAsset, formatUsd, type AccountResponse, type AssetInfo, type Hex } from "@twain/shared";
+import { ponsCurveAbi, twainFeeVaultAbi } from "@twain/shared/abi";
 import { useEffect, type ReactNode } from "react";
 import { zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain } from "wagmi";
@@ -10,9 +10,8 @@ import { config } from "@/lib/config";
 import { useTx } from "@/lib/tx";
 import { appChain } from "@/lib/wagmi";
 
-const { launchpad, locker } = config.deployment;
 /** Onchain reads/claims only with deployed contracts. */
-const LIVE = launchpad !== zeroAddress && locker !== zeroAddress;
+const LIVE = config.deployment.launcher !== zeroAddress;
 
 type PerAsset = Map<Hex, { asset: AssetInfo; amount: bigint }>;
 
@@ -45,35 +44,45 @@ export function CreatorFees({ address, account }: { address: Hex; account: Accou
     if (window.location.hash === "#creator-fees") document.getElementById("creator-fees")?.scrollIntoView({ block: "start" });
   }, []);
 
-  const infos = useReadContracts({
-    contracts: created.map((t) => ({ address: launchpad, abi: launchpadAbi, functionName: "coinInfo", args: [t.address] }) as const),
+  // Per coin, from its TwainFeeVault: current creator, the creator's owed share, and what a harvest would add.
+  const vaults = useReadContracts({
+    contracts: created.flatMap(
+      (t) =>
+        [
+          { address: t.vault, abi: twainFeeVaultAbi, functionName: "creator" },
+          { address: t.vault, abi: twainFeeVaultAbi, functionName: "creatorOwed", args: [t.asset.address] },
+          { address: t.vault, abi: twainFeeVaultAbi, functionName: "pending", args: [t.asset.address] },
+          { address: t.curve, abi: ponsCurveAbi, functionName: "quoteFeeBalance" },
+          { address: t.curve, abi: ponsCurveAbi, functionName: "creatorTaxBalance" },
+        ] as const,
+    ),
     query: { enabled: LIVE && created.length > 0, refetchInterval: 15_000 },
   });
-  const pools = useReadContracts({
-    contracts: created.map((t) => ({ address: locker, abi: lockerAbi, functionName: "pendingFees", args: [t.address] }) as const),
-    query: { enabled: LIVE && created.length > 0, refetchInterval: 30_000 },
-  });
 
-  // Available = collected and unclaimed (coinInfo.creatorFees) + the creator's share still in the pools; a claim
-  // collects the pool fees first, so both are paid in the same transaction.
+  // Available = split and owed to the creator + the creator's 60% of what is still in Pons' escrow (a claim harvests
+  // it first, so both are paid in the same transaction).
   let available: PerAsset | null = null;
   let waiting: PerAsset | null = null;
   const claimable: Hex[] = [];
   if (account && created.length === 0) {
     available = new Map();
     waiting = new Map();
-  } else if (infos.data && pools.data) {
+  } else if (vaults.data) {
     available = new Map();
     waiting = new Map();
     created.forEach((t, i) => {
-      const info = infos.data![i];
-      const pool = pools.data![i];
-      if (info?.status !== "success" || info.result.creator.toLowerCase() !== address.toLowerCase()) return;
-      const pendingAsset = pool?.status === "success" ? (pool.result[0] * CREATOR_FEE_SHARE) / 100n : 0n;
-      const pendingCoin = pool?.status === "success" ? pool.result[1] : 0n;
-      add(available!, t.asset, info.result.creatorFees + pendingAsset);
-      add(waiting!, t.asset, pendingAsset);
-      if (info.result.creatorFees > 0n || pendingAsset > 0n || pendingCoin > 0n) claimable.push(t.address);
+      const [creator, owed, pending, feeBal, taxBal] = vaults.data!.slice(i * 5, i * 5 + 5);
+      if (creator?.status !== "success" || (creator.result as string).toLowerCase() !== address.toLowerCase()) return;
+      const owedNow = owed?.status === "success" ? (owed.result as bigint) : 0n;
+      const onCurve =
+        t.phase === "curve" && feeBal?.status === "success" && taxBal?.status === "success"
+          ? curveCreatorSide(feeBal.result as bigint, taxBal.result as bigint)
+          : 0n;
+      const notSplit = (pending?.status === "success" ? (pending.result as bigint) : 0n) + onCurve;
+      const fromEscrow = (notSplit * CREATOR_FEE_SHARE) / 100n;
+      add(available!, t.asset, owedNow + fromEscrow);
+      add(waiting!, t.asset, fromEscrow);
+      if (owedNow + fromEscrow > 0n) claimable.push(t.vault);
     });
   }
 
@@ -93,18 +102,27 @@ export function CreatorFees({ address, account }: { address: Hex; account: Accou
   const wrongChain = chainId !== undefined && chainId !== appChain.id;
   const claimTx = useTx();
 
-  const claimAll = () =>
-    claimTx.run(
-      () => claimTx.writeContractAsync({ address: launchpad, abi: launchpadAbi, functionName: "claimCreatorFees", args: [claimable], chainId: appChain.id }),
-      { pending: "Claiming creator fees…", success: "Creator fees claimed" },
-    );
+  // One transaction per coin vault, in turn.
+  const claimAll = async () => {
+    for (const [i, vault] of claimable.entries()) {
+      const rc = await claimTx.run(
+        () => claimTx.writeContractAsync({ address: vault, abi: twainFeeVaultAbi, functionName: "claimCreator", chainId: appChain.id }),
+        {
+          pending: `Claiming creator fees (${i + 1} of ${claimable.length})…`,
+          success: i + 1 === claimable.length ? "Creator fees claimed" : `Claimed ${i + 1} of ${claimable.length}`,
+        },
+      );
+      if (!rc) break;
+    }
+    void vaults.refetch();
+  };
 
   const tiles = [
-    { label: "Total earned", hint: "Your share of pool fees collected so far, since launch.", m: money(earned) },
+    { label: "Total earned", hint: "Your share of trading fees split so far, since launch.", m: money(earned) },
     { label: "Claimed", m: money(claimed) },
     {
-      label: "Still in pools",
-      hint: `Your ${PARAMS.creatorFeePct} of trades not yet collected from the pools. A claim collects it first.`,
+      label: "Not yet collected",
+      hint: `Your share of trades still held by Pons for your coins. A claim collects it first.`,
       m: money(waiting),
     },
   ];
@@ -118,8 +136,8 @@ export function CreatorFees({ address, account }: { address: Hex; account: Accou
             Creator fees
           </h2>
           <p className="mt-2 max-w-xl text-sm text-muted">
-            {PARAMS.creatorFeePct} of every trade in your coins&apos; pools, paid in each coin&apos;s paired asset. Fees paid in your coin go
-            straight to this wallet when they are collected.
+            You earn {PARAMS.creatorEarnsPct} of every trade in your coins, on the launch curve and in the Uniswap pool, paid in
+            each coin&apos;s paired asset. Each coin keeps its fees in its own vault until you claim.
           </p>
         </div>
         <div className="flex flex-wrap items-center gap-2">
@@ -131,7 +149,7 @@ export function CreatorFees({ address, account }: { address: Hex; account: Accou
             <Button
               loading={claimTx.busy}
               disabled={!LIVE || claimable.length === 0}
-              onClick={claimAll}
+              onClick={() => void claimAll()}
               title={!LIVE ? "Claims open once the contracts are configured." : undefined}
             >
               Claim all
