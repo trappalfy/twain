@@ -1,11 +1,24 @@
 "use client";
 
-import { COPY, TOTAL_SUPPLY, WAD, formatTiny, formatUsd, priceX18ToNumber, sig, type Interval, type TokenDetail } from "@twain/shared";
+import {
+  COPY,
+  INTERVAL_SECONDS,
+  TOTAL_SUPPLY,
+  WAD,
+  fillCandles,
+  formatTiny,
+  formatUsd,
+  priceX18ToNumber,
+  sig,
+  type Interval,
+  type TokenDetail,
+} from "@twain/shared";
 import {
   CandlestickSeries,
   ColorType,
   LineSeries,
   createChart,
+  type AutoscaleInfo,
   type CandlestickData,
   type IChartApi,
   type ISeriesApi,
@@ -39,7 +52,23 @@ const METRICS: { value: Metric; label: string }[] = [
 const SUPPLY = Number(TOTAL_SUPPLY / WAD);
 /** Bars kept in view on load (older ones are a scroll away). */
 const VISIBLE_BARS = 70;
+/** Bars drawn per interval once empty buckets are filled (1s: the last ~83 minutes, 1m: ~3.5 days). */
+const MAX_BARS = 5_000;
 const HEIGHT = "h-[320px] md:h-[420px]";
+
+/**
+ * Keeps the price scale at least ±1% around the price. A stretch without trades is a flat line; the default autoscale
+ * would shrink to it and label every gridline with the same rounded price.
+ */
+function minPriceRange(original: () => AutoscaleInfo | null): AutoscaleInfo | null {
+  const info = original();
+  if (!info?.priceRange) return info;
+  const { minValue, maxValue } = info.priceRange;
+  const mid = (minValue + maxValue) / 2;
+  const half = Math.abs(mid) * 0.01;
+  if (maxValue - minValue >= 2 * half) return info;
+  return { ...info, priceRange: { minValue: mid - half, maxValue: mid + half } };
+}
 
 /** Hex colour → rgba with alpha (theme tokens used here are plain hex). */
 function alpha(hex: string, a: number) {
@@ -56,6 +85,22 @@ export function TokenChart({ token, indexing, className }: { token: TokenDetail;
   const assetUsd = token.asset.usd;
   const unit: Unit = assetUsd == null ? "asset" : unitPref;
   const candles = useCandles(indexing ? null : token.address, interval);
+  // The API returns only buckets with a trade; the chart needs one bar per interval up to now. Previous-interval data
+  // shown while the new one loads is left as is (its buckets do not match this interval).
+  const { data, isPlaceholderData, dataUpdatedAt } = candles;
+  const bars = useMemo(
+    () =>
+      data && !isPlaceholderData
+        ? fillCandles(data, {
+            step: INTERVAL_SECONDS[interval],
+            now: Math.floor(dataUpdatedAt / 1000),
+            from: token.createdAt,
+            startPrice: token.startPriceX18,
+            maxBars: MAX_BARS,
+          })
+        : data,
+    [data, isPlaceholderData, dataUpdatedAt, interval, token.createdAt, token.startPriceX18],
+  );
 
   return (
     <Card className={className}>
@@ -87,7 +132,7 @@ export function TokenChart({ token, indexing, className }: { token: TokenDetail;
         ) : (
           <CandleChart
             token={token}
-            candles={candles.data}
+            candles={bars}
             failed={candles.isError && !candles.data}
             metric={metric}
             unit={unit}
@@ -170,8 +215,14 @@ function CandleChart({
       timeScale: { timeVisible: true, secondsVisible: false, rightOffset: 2 },
     });
     chart.current = c;
-    candleSeries.current = c.addSeries(CandlestickSeries, { priceLineVisible: true });
-    lineSeries.current = c.addSeries(LineSeries, { lineWidth: 2, priceLineVisible: false, crosshairMarkerVisible: false, lastValueVisible: true });
+    candleSeries.current = c.addSeries(CandlestickSeries, { priceLineVisible: true, autoscaleInfoProvider: minPriceRange });
+    lineSeries.current = c.addSeries(LineSeries, {
+      lineWidth: 2,
+      priceLineVisible: false,
+      crosshairMarkerVisible: false,
+      lastValueVisible: true,
+      autoscaleInfoProvider: minPriceRange,
+    });
     return () => {
       c.remove();
       chart.current = null;
@@ -218,14 +269,20 @@ function CandleChart({
   useEffect(() => {
     const c = chart.current;
     if (!c || !candleSeries.current || !lineSeries.current) return;
+    const ts = c.timeScale();
+    // New bars arrive every interval: keep following the latest one unless the viewer scrolled back into history.
+    const offset = ts.scrollPosition();
+    const following = fitted.current === fitKey && offset > -0.5;
     candleSeries.current.applyOptions({ priceFormat });
     lineSeries.current.applyOptions({ priceFormat });
     candleSeries.current.setData(bars);
     lineSeries.current.setData(flat);
     if (fitted.current !== fitKey && (bars.length || flat.length)) {
       fitted.current = fitKey;
-      if (bars.length) c.timeScale().setVisibleLogicalRange({ from: bars.length - VISIBLE_BARS, to: bars.length + 2 });
-      else c.timeScale().fitContent();
+      if (bars.length) ts.setVisibleLogicalRange({ from: bars.length - VISIBLE_BARS, to: bars.length + 2 });
+      else ts.fitContent();
+    } else if (following) {
+      ts.scrollToPosition(offset, false);
     }
   }, [bars, flat, priceFormat, fitKey]);
 
