@@ -26,6 +26,15 @@ const nextConfig: NextConfig = {
     dangerouslyAllowLocalIP:
       process.env.NODE_ENV !== "production" || /^https?:\/\/(localhost|127\.0\.0\.1)(:|\/|$)/.test(process.env.NEXT_PUBLIC_SITE_URL ?? ""),
   },
+  async headers() {
+    // Stock logos (scripts/asset-logos.mjs) only change when the script is re-run: let browsers and the CDN keep them.
+    return [
+      {
+        source: "/logos/assets/:file*",
+        headers: [{ key: "Cache-Control", value: "public, max-age=86400, s-maxage=2592000, stale-while-revalidate=604800" }],
+      },
+    ];
+  },
   async redirects() {
     return [{ source: "/launchpad", destination: "/", statusCode: 301 }];
   },

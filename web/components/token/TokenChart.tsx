@@ -22,6 +22,7 @@ type Metric = "price" | "mcap";
 type Unit = "usd" | "asset";
 
 const INTERVALS: { value: Interval; label: string }[] = [
+  { value: "1s", label: "1s" },
   { value: "1m", label: "1m" },
   { value: "5m", label: "5m" },
   { value: "15m", label: "15m" },
@@ -91,6 +92,7 @@ export function TokenChart({ token, indexing, className }: { token: TokenDetail;
             metric={metric}
             unit={unit}
             assetUsd={assetUsd}
+            seconds={interval === "1s"}
             fitKey={`${token.address}|${interval}|${metric}|${unit}`}
           />
         )}
@@ -106,6 +108,7 @@ function CandleChart({
   metric,
   unit,
   assetUsd,
+  seconds,
   fitKey,
 }: {
   token: TokenDetail;
@@ -114,6 +117,8 @@ function CandleChart({
   metric: Metric;
   unit: Unit;
   assetUsd: number | null;
+  /** 1-second candles: show seconds on the time axis. */
+  seconds: boolean;
   fitKey: string;
 }) {
   const el = useRef<HTMLDivElement>(null);
@@ -204,6 +209,10 @@ function CandleChart({
     });
     lineSeries.current?.applyOptions({ color: cssVar("--accent") });
   }, []);
+
+  useEffect(() => {
+    chart.current?.applyOptions({ timeScale: { secondsVisible: seconds } });
+  }, [seconds]);
 
   // Data.
   useEffect(() => {

@@ -40,6 +40,7 @@ export const isCountedHolder = (a: Hex, coin: CoinAddrs | undefined) =>
   !INFRA_SET.has(a) && a !== POOL_MANAGER && (!coin || (a !== coin.curve && a !== coin.vault));
 
 export const INTERVALS: ReadonlyArray<readonly [Interval, number]> = [
+  ["1s", 1],
   ["1m", 60],
   ["5m", 300],
   ["15m", 900],

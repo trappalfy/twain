@@ -8,7 +8,7 @@
 export type Hex = `0x${string}`;
 export type SortKey = "recentBuys" | "newest" | "oldest" | "marketCap" | "volume";
 export type WindowKey = "all" | "24h" | "7d";
-export type Interval = "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
+export type Interval = "1s" | "1m" | "5m" | "15m" | "1h" | "4h" | "1d";
 
 /** native = ETH, stock = Robinhood stock token, token = any other ERC-20 Pons V2 accepts as a pair. */
 export type AssetKind = "native" | "stock" | "token";

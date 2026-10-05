@@ -7,7 +7,7 @@ export function AssetIcon({ asset, size = 16, className }: { asset: Pick<AssetIn
   if (asset.kind === "native") return <EthIcon size={size} className={className} />;
   if (asset.logo) {
     return (
-      // eslint-disable-next-line @next/next/no-img-element -- third-party logo CDN, tiny and fixed size
+      // eslint-disable-next-line @next/next/no-img-element -- tiny fixed-size logo (local stock SVGs or a token logo CDN)
       <img
         src={asset.logo}
         alt=""

@@ -1,9 +1,10 @@
 /**
  * Display details and current USD prices of pair assets, for the API's USD figures:
  *  - native ETH: exchange APIs (lib/server/eth-usd.ts);
- *  - Robinhood stock tokens: Robinhood's public stock-token API — name and logo from /rhj/assets, prices from
+ *  - Robinhood stock tokens: Robinhood's public stock-token API — name from /rhj/assets, prices from
  *    /rhj/prices (every quote in one response; mid of the token-denominated bid/ask, already adjusted for the token's
- *    multiplier);
+ *    multiplier); the logo is the company's own, shipped in public/logos/assets (scripts/asset-logos.mjs), because
+ *    Robinhood's API returns the same generic Robinhood logo for every stock token;
  *  - any other ERC-20 (stablecoins, BTC, …): symbol/name/decimals from the chain; logo and USD price from GeckoTerminal
  *    (one request per 30 tokens), DexScreener's deepest pair as fallback for the price.
  * Every source is fetched at most once per TTL per instance (stock list 1 h, prices 60 s; concurrent callers share the
@@ -11,6 +12,7 @@
  */
 import type { AssetInfo } from "@twain/shared";
 import { fetchEthUsd } from "@/lib/server/eth-usd";
+import { ASSET_LOGOS } from "./asset-logos";
 import type { AssetRow } from "./schema";
 import { lc, ZERO_ADDRESS, type Hex } from "./shared";
 
@@ -26,7 +28,7 @@ type Stock = { symbol: string; name: string; logo: string | null };
 type Token = { logo: string | null; usd: number | null };
 
 type RhDeployment = { contractAddress?: string; chainId?: number };
-type RhAsset = { tokenSymbol?: string; tokenName?: string; logoUrl?: string; deployments?: RhDeployment[] };
+type RhAsset = { tokenSymbol?: string; tokenName?: string; deployments?: RhDeployment[] };
 type RhQuote = { tokenBid?: string; tokenAsk?: string; bid?: string; ask?: string; deployments?: RhDeployment[] };
 
 async function getJson<T>(url: string, revalidate: number): Promise<T | null> {
@@ -75,7 +77,7 @@ function stockList(): Promise<Map<Hex, Stock>> {
           symbol: a.tokenSymbol,
           // "Tesla • Robinhood Token" → "Tesla"
           name: (a.tokenName ?? a.tokenSymbol).replace(/\s*[•·]\s*Robinhood Token$/i, ""),
-          logo: a.logoUrl ?? null,
+          logo: ASSET_LOGOS.has(address) ? `/logos/assets/${address}.svg` : null,
         });
       }
       return out;

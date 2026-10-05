@@ -348,7 +348,7 @@ export class Batch {
   }
 
   /**
-   * Updates all six candle intervals for one price change. A new bucket opens at the price before the change
+   * Updates every candle interval (1s to 1d) for one price change. A new bucket opens at the price before the change
    * (`prevPrice`), so consecutive candles connect and the first candle of a coin starts at its launch price.
    * `trades` = 0 for price moves that are not trades (the Pons hook converting its fees).
    */

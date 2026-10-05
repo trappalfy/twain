@@ -1,5 +1,5 @@
 import { bigint, boolean, customType, integer, pgSchema, primaryKey, text } from "drizzle-orm/pg-core";
-import type { CoinPhase } from "@twain/shared";
+import type { CoinPhase, Interval } from "@twain/shared";
 
 /**
  * Built-in indexer tables, in their own Postgres schema next to the forum tables (same database).
@@ -12,7 +12,7 @@ import type { CoinPhase } from "@twain/shared";
  * START_BLOCK on the next sync (cheap — only twain's own contracts, its coins and their pools are fetched, plus the
  * Pons factory's pair-token history once).
  */
-export const SCHEMA_VERSION = 2;
+export const SCHEMA_VERSION = 3;
 export const SCHEMA = "twain_ix";
 
 const ix = pgSchema(SCHEMA);
@@ -144,7 +144,7 @@ export const candle = ix.table(
   "candle",
   {
     token: text("token").$type<`0x${string}`>().notNull(),
-    interval: text("interval").$type<"1m" | "5m" | "15m" | "1h" | "4h" | "1d">().notNull(),
+    interval: text("interval").$type<Interval>().notNull(),
     /** Bucket start, unix seconds (UTC-aligned). */
     time: int8("time").notNull(),
     open: wei("open").notNull(),
