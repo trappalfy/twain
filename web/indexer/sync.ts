@@ -15,6 +15,7 @@ import { PONS_V2 } from "@twain/shared";
 import { ponsCurveAbi, ponsFactoryAbi, ponsTokenAbi } from "@twain/shared/abi";
 import { and, eq, lt } from "drizzle-orm";
 import { erc20Abi, hexToNumber, parseEventLogs, toEventSelector, type RpcLog } from "viem";
+import { isHiddenCoin } from "@/config/twain-token";
 import { config } from "@/lib/config";
 import { ABIS, Batch, ponsPoolId, type AssetMeta, type DecodedLog, type EthEconomics, type Ev, type HookFee, type LaunchInfo } from "./apply";
 import { ixDb, ixTx, type IxDb } from "./db";
@@ -224,8 +225,18 @@ async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<
     getLogs({ address: PONS_FACTORY, topics: [FACTORY_TOPICS] }, from, to),
   ]);
 
-  // Coins launched in this range: their own logs, constants and token info.
-  const launched = parseEventLogs({ abi: ABIS.launcher, logs: own.filter((l) => lc(l.address) === LAUNCHER) });
+  // Coins launched in this range: their own logs, constants and token info. Hidden coins (the owner's test launches,
+  // impersonations of $TWAIN — config/twain-token.ts) are dropped here with everything they emit, so they never
+  // reach a table: no list, page, stats or profile shows them.
+  const launchedAll = parseEventLogs({ abi: ABIS.launcher, logs: own.filter((l) => lc(l.address) === LAUNCHER) });
+  const infos = await readLaunchInfos(
+    launchedAll.map((l) => ({ address: lc(l.args.coin), curve: lc(l.args.curve), vault: lc(l.args.vault), pairToken: lc(l.args.pairToken) })),
+  );
+  const launched = launchedAll.filter((l) => {
+    const coin = lc(l.args.coin);
+    const info = infos.get(coin);
+    return !isHiddenCoin(coin, info?.name, info?.symbol);
+  });
   const fresh = launched.map((l) => ({
     address: lc(l.args.coin),
     curve: lc(l.args.curve),
@@ -241,9 +252,8 @@ async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<
   );
   const needEth = factoryLogs.some((l) => l.eventName === "LaunchConfigUpdated" && l.args.id === 0n);
 
-  const [freshLogs, infos, metas, eth] = await Promise.all([
+  const [freshLogs, metas, eth] = await Promise.all([
     fresh.length ? ownLogs(fresh.flatMap((c) => [c.address, c.curve, c.vault])) : Promise.resolve([]),
-    readLaunchInfos(fresh),
     readAssetMetas(newPairTokens(factoryLogs, assets)),
     needEth ? readEthEconomics() : Promise.resolve(undefined),
   ]);

@@ -5,10 +5,11 @@ import { Plus } from "lucide-react";
 import { useEffect, useRef } from "react";
 import { AssetIcon } from "@/components/common";
 import { Button, Card, CardHeader, CountPill, EmptyState, Pagination, PillTabs } from "@/components/ui";
-import { useAssets, useStats, useTokens } from "@/lib/api";
+import { isTwainToken, TWAIN_TOKEN } from "@/config/twain-token";
+import { useAssets, useStats, useToken, useTokens } from "@/lib/api";
 import { cn } from "@/lib/utils";
 import { EXPLORE_PANEL_ANCHOR, exploreHref, GRID, PAGE_SIZE, SORTS, WINDOWS, type ExploreState } from "./query";
-import { TokenCard, TokenCardSkeleton } from "./TokenCard";
+import { TokenCard, TokenCardSkeleton, TwainPrelaunchCard } from "./TokenCard";
 
 export function ExplorePanel({ state }: { state: ExploreState }) {
   const { sort, window, asset, page } = state;
@@ -19,6 +20,18 @@ export function ExplorePanel({ state }: { state: ExploreState }) {
   const pairs = (useAssets().data ?? []).filter((a) => a.coins > 0 || a.address === asset);
   const selected = pairs.find((a) => a.address === asset);
   const now = Math.floor(dataUpdatedAt / 1000); // "New" badge reference time, refreshed with every poll
+  // The official $TWAIN is pinned first on page 1 of the unfiltered list: its pre-launch card until its address is
+  // set (config/twain-token.ts), then the live coin (left out of the regular list below).
+  const pinned = page === 1 && asset === "all";
+  const official = useToken(pinned ? TWAIN_TOKEN.address : null);
+  const pinnedCard = !pinned ? null : !TWAIN_TOKEN.address ? (
+    <TwainPrelaunchCard />
+  ) : official.data ? (
+    <TokenCard token={official.data} now={now} official />
+  ) : (
+    <TokenCardSkeleton />
+  );
+  const items = data?.items.filter((t) => !isTwainToken(t.address)) ?? [];
 
   // Page links keep the scroll position; bring the top of the list back into view when the page changes.
   const prevPage = useRef(page);
@@ -87,7 +100,11 @@ export function ExplorePanel({ state }: { state: ExploreState }) {
           </div>
         ) : isError && !data ? (
           <p className="py-12 text-center text-sm text-muted">Coins could not be loaded. Retrying.</p>
-        ) : !data || data.items.length === 0 ? (
+        ) : items.length === 0 && pinnedCard ? (
+          <ul className={GRID}>
+            <li className="flex flex-col [&>article]:flex-1">{pinnedCard}</li>
+          </ul>
+        ) : !data || items.length === 0 ? (
           page > 1 && data && data.total > 0 ? (
             <EmptyState
               title="This page is past the end of the list."
@@ -116,7 +133,8 @@ export function ExplorePanel({ state }: { state: ExploreState }) {
           )
         ) : (
           <ul className={cn(GRID, "transition-opacity", isPlaceholderData && "opacity-60")} aria-busy={isPlaceholderData || undefined}>
-            {data.items.map((t) => (
+            {pinnedCard && <li className="flex flex-col [&>article]:flex-1">{pinnedCard}</li>}
+            {items.map((t) => (
               <li key={t.address} className="flex flex-col [&>article]:flex-1">
                 <TokenCard token={t} now={now} />
               </li>

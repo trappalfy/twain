@@ -11,6 +11,7 @@ import type { ReactElement } from "react";
 import sharp from "sharp";
 import { isAddress } from "viem";
 import { TWAIN_MARK_PATH } from "@/components/icons";
+import { TWAIN_TOKEN } from "@/config/twain-token";
 import { api } from "@/lib/api";
 import { config } from "@/lib/config";
 import { identiconSvg } from "@/lib/identicon";
@@ -225,6 +226,54 @@ export async function tokenOgImage(address: string) {
               {change != null ? `${formatPct(change, { sign: true })} 24h` : t.phase === "pool" ? COPY.token.lockedPlate : "On its launch curve"}
             </span>
           </div>
+        </div>
+
+        {/* eslint-disable-next-line @next/next/no-img-element */}
+        <img src={wm} width={106} height={40} alt="" style={{ position: "absolute", right: 40, top: 36 }} />
+      </div>
+    </Frame>,
+  );
+}
+
+/** An image the site itself serves (e.g. /brand/…), 400×400 PNG data URI; null if it cannot be fetched. */
+async function siteImage(path: string): Promise<string | null> {
+  try {
+    const res = await fetch(new URL(path, config.siteUrl), { signal: AbortSignal.timeout(3000), next: { revalidate: 3600 } });
+    if (!res.ok) return null;
+    const png = await sharp(Buffer.from(await res.arrayBuffer()), { limitInputPixels: 40_000_000 }).resize(400, 400, { fit: "cover" }).png().toBuffer();
+    return dataUri(png, "image/png");
+  } catch {
+    return null;
+  }
+}
+
+/** The official $TWAIN: the live coin's card once its address is set; before that its identity, with no market data. */
+export async function twainOgImage() {
+  if (TWAIN_TOKEN.address) return tokenOgImage(TWAIN_TOKEN.address);
+  const T = TWAIN_TOKEN;
+  const [bg, wm, img] = await Promise.all([poster(), wordmark(), siteImage(T.image)]);
+  const name = clip(clean(T.name), 28);
+
+  return render(
+    <Frame bg={bg}>
+      <div style={{ position: "absolute", left: 40, top: 40, right: 40, bottom: 40, display: "flex", alignItems: "center", gap: 48, padding: 44, borderRadius: 36, background: "rgba(255,255,255,0.86)", border: "1px solid rgba(255,255,255,0.95)", boxShadow: "0 10px 40px rgba(20,70,120,0.16)" }}>
+        {img ? (
+          // eslint-disable-next-line @next/next/no-img-element
+          <img src={img} width={380} height={380} alt="" style={{ borderRadius: 28, border: `1px solid ${C.border}` }} />
+        ) : (
+          <div style={{ width: 380, height: 380, display: "flex", alignItems: "center", justifyContent: "center", borderRadius: 28, background: C.surface2, border: `1px solid ${C.border}` }}>
+            <Mark size={220} color={C.brand} />
+          </div>
+        )}
+
+        <div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
+          <div style={{ display: "flex", alignItems: "center", gap: 10, alignSelf: "flex-start", fontFamily: "Sora", fontWeight: 600, fontSize: 20, padding: "8px 16px", borderRadius: 999, color: C.ink, background: C.surface2, border: `1px solid ${C.border}` }}>
+            <Mark size={16} color={C.brand} />
+            Official token
+          </div>
+          <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 72, lineHeight: 1.04, letterSpacing: -1.5, color: C.ink, marginTop: 22 }}>{name}</span>
+          <span style={{ fontFamily: "Sora", fontSize: 30, color: C.ink2, marginTop: 8 }}>{`$${clean(T.symbol).toUpperCase()}`}</span>
+          <span style={{ fontFamily: "Sora", fontWeight: 600, fontSize: 40, color: C.ink, marginTop: 36 }}>Not launched yet</span>
         </div>
 
         {/* eslint-disable-next-line @next/next/no-img-element */}

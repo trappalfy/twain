@@ -5,6 +5,7 @@ import { Globe } from "lucide-react";
 import type { ReactNode } from "react";
 import { AddressLink, AssetIcon, TimeAgo, TokenImage } from "@/components/common";
 import { Badge, Card, Spinner, TelegramIcon, XIcon } from "@/components/ui";
+import { isTwainToken } from "@/config/twain-token";
 import { cn } from "@/lib/utils";
 import { socialUrl } from "./links";
 
@@ -33,6 +34,7 @@ export function TokenHeader({ token, notice, className }: { token: TokenDetail; 
                 <AssetIcon asset={asset} size={14} />
                 {asset.symbol} pair
               </Badge>
+              {isTwainToken(token.address) && <Badge variant="new">Official</Badge>}
             </div>
             <div className="mt-2 flex flex-wrap items-center gap-x-4 gap-y-1.5 text-13 text-muted">
               <AddressLink address={token.address} kind="token" copy />

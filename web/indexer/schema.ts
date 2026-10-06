@@ -12,7 +12,7 @@ import type { CoinPhase, Interval } from "@twain/shared";
  * START_BLOCK on the next sync (cheap — only twain's own contracts, its coins and their pools are fetched, plus the
  * Pons factory's pair-token history once).
  */
-export const SCHEMA_VERSION = 3;
+export const SCHEMA_VERSION = 4;
 export const SCHEMA = "twain_ix";
 
 const ix = pgSchema(SCHEMA);
@@ -31,6 +31,8 @@ export const syncState = ix.table("sync_state", {
   launcher: text("launcher").notNull(),
   version: integer("version").notNull(),
   startBlock: int8("start_block").notNull(),
+  /** COIN_FILTER_ID the data was built with (hidden coins, the official $TWAIN address). */
+  coinFilter: text("coin_filter").notNull(),
   /** Last block whose logs are fully applied. */
   cursor: int8("cursor").notNull(),
   /** Pons pair-token history (approvals, economics) is applied up to this block; −1 = not loaded yet. */
@@ -219,6 +221,7 @@ export const DDL = [
     launcher text NOT NULL,
     version integer NOT NULL,
     start_block bigint NOT NULL,
+    coin_filter text NOT NULL DEFAULT '',
     cursor bigint NOT NULL,
     assets_cursor bigint NOT NULL DEFAULT -1,
     head bigint NOT NULL DEFAULT 0,

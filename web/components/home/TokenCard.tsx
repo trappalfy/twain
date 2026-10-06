@@ -5,6 +5,7 @@ import Link from "next/link";
 import type { ReactNode } from "react";
 import { AssetIcon, CoinMcap, TimeAgo, TokenImage } from "@/components/common";
 import { Badge, Skeleton } from "@/components/ui";
+import { TWAIN_TOKEN } from "@/config/twain-token";
 import { cn } from "@/lib/utils";
 
 const NEW_SECONDS = 3600;
@@ -13,29 +14,33 @@ const IMAGE_SIZES = "(min-width: 1280px) 220px, (min-width: 1024px) 25vw, (min-w
 
 export const tokenHref = (t: Pick<TokenSummary, "address">) => `/launchpad/${t.address}`;
 
+type ShellProps = { href: string; image: string | null; seed: string; name: string; symbol: string; badges?: ReactNode; children: ReactNode };
+
 /**
  * Card shell: the whole card is clickable through the name link stretched over it (after:inset-0),
  * so badges stay separate elements (no interactive content nested in <a>).
  */
-function CardShell({ token, badges, children }: { token: TokenSummary; badges?: ReactNode; children: ReactNode }) {
+function CardShell({ href, image, seed, name, symbol, badges, children }: ShellProps) {
   return (
     <article className="group relative flex flex-col rounded-card bg-surface-2 p-2.5 transition-[box-shadow,translate] duration-150 focus-within:ring-2 focus-within:ring-accent hover:-translate-y-0.5 hover:shadow-pop motion-reduce:hover:translate-y-0">
       <div className="relative aspect-square w-full overflow-hidden rounded-image">
-        <TokenImage src={token.meta.image} alt="" seed={token.address} size="fill" sizes={IMAGE_SIZES} />
+        <TokenImage src={image} alt="" seed={seed} size="fill" sizes={IMAGE_SIZES} />
         {badges && <div className="absolute left-2 top-2 flex flex-wrap gap-1.5">{badges}</div>}
       </div>
       <div className="flex min-w-0 flex-1 flex-col px-1.5 pt-3 pb-1">
         <h3 className="truncate text-base font-medium text-text">
-          <Link href={tokenHref(token)} className="outline-none after:absolute after:inset-0 after:rounded-card after:content-['']">
-            {token.name}
+          <Link href={href} className="outline-none after:absolute after:inset-0 after:rounded-card after:content-['']">
+            {name}
           </Link>
         </h3>
-        <p className="truncate text-13 text-muted">${token.symbol}</p>
+        <p className="truncate text-13 text-muted">${symbol}</p>
         {children}
       </div>
     </article>
   );
 }
+
+const shell = (t: TokenSummary) => ({ href: tokenHref(t), image: t.meta.image, seed: t.address, name: t.name, symbol: t.symbol });
 
 function Mcap({ token }: { token: TokenSummary }) {
   return (
@@ -46,12 +51,13 @@ function Mcap({ token }: { token: TokenSummary }) {
   );
 }
 
-/** Explore card: image, badges, name, $TICKER, market cap, pair and 24h change, address, last buy. */
-export function TokenCard({ token, now }: { token: TokenSummary; now: number }) {
+/** Explore card: image, badges, name, $TICKER, market cap, pair and 24h change, address, last buy. `official`: $TWAIN. */
+export function TokenCard({ token, now, official }: { token: TokenSummary; now: number; official?: boolean }) {
   const isNew = now - token.createdAt < NEW_SECONDS;
   const change = token.change24hPct;
+  const badges = official ? <Badge variant="new">Official</Badge> : isNew ? <Badge variant="new">New</Badge> : undefined;
   return (
-    <CardShell token={token} badges={isNew ? <Badge variant="new">New</Badge> : undefined}>
+    <CardShell {...shell(token)} badges={badges}>
       <Mcap token={token} />
       <div className="mt-2.5 flex items-center justify-between gap-2 text-13">
         <span className="inline-flex min-w-0 items-center gap-1.5 text-muted" title={`Paired with ${token.asset.name}`}>
@@ -68,6 +74,17 @@ export function TokenCard({ token, now }: { token: TokenSummary; now: number }) 
         </span>
         <TimeAgo ts={token.lastBuyAt} freshSeconds={LAST_BUY_FRESH_SECONDS} className="text-13" />
       </div>
+    </CardShell>
+  );
+}
+
+/** Pinned card of the official $TWAIN before it launches: its identity only, linking to /launchpad/twain. */
+export function TwainPrelaunchCard() {
+  const T = TWAIN_TOKEN;
+  return (
+    <CardShell href="/launchpad/twain" image={T.image} seed={T.symbol} name={T.name} symbol={T.symbol} badges={<Badge variant="new">Official</Badge>}>
+      <p className="mt-2 text-lg font-semibold text-text">Not launched yet</p>
+      <p className="mt-2.5 text-13 text-muted">The official twain token</p>
     </CardShell>
   );
 }

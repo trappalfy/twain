@@ -1,4 +1,4 @@
-import { OG_CONTENT_TYPE, OG_SIZE, tokenOgImage } from "@/components/docs/og";
+import { OG_CONTENT_TYPE, OG_SIZE, tokenOgImage, twainOgImage } from "@/components/docs/og";
 
 export const alt = "Token on twain";
 export const size = OG_SIZE;
@@ -8,5 +8,6 @@ export const revalidate = 60;
 
 export default async function Image({ params }: { params: Promise<{ address: string }> }) {
   const { address } = await params;
+  if (address.toLowerCase() === "twain") return twainOgImage();
   return tokenOgImage(address);
 }
