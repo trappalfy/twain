@@ -16,7 +16,7 @@ type Props = {
 
 const isAddress = (a: string): a is Hex => /^0x[0-9a-fA-F]{40}$/.test(a);
 
-/** /launchpad/twain: the official $TWAIN — its live page once the address is set, a pre-launch page until then. */
+/** /launchpad/twain: the official $TWAIN — its live page once the address is set, a pre-launch page until then; 404 while it is hidden. */
 const OFFICIAL_SLUG = "twain";
 
 /** Indexer record, or null (not indexed yet / indexer down). Shared by generateMetadata and the page. */
@@ -33,7 +33,7 @@ const hidden = cache(async (address: Hex) => isHiddenCoinPage(address, (await lo
 
 export async function generateMetadata({ params }: Props): Promise<Metadata> {
   const { address } = await params;
-  if (address.toLowerCase() === OFFICIAL_SLUG && !TWAIN_TOKEN.address) {
+  if (address.toLowerCase() === OFFICIAL_SLUG && TWAIN_TOKEN.visible && !TWAIN_TOKEN.address) {
     return { title: `${TWAIN_TOKEN.name} ($${TWAIN_TOKEN.symbol})`, description: TWAIN_TOKEN.description };
   }
   if (!isAddress(address) || (await hidden(address))) return {};
@@ -49,6 +49,7 @@ export async function generateMetadata({ params }: Props): Promise<Metadata> {
 export default async function Page({ params, searchParams }: Props) {
   const [{ address }, sp] = await Promise.all([params, searchParams]);
   if (address.toLowerCase() === OFFICIAL_SLUG) {
+    if (!TWAIN_TOKEN.visible) notFound();
     if (TWAIN_TOKEN.address) redirect(`/launchpad/${TWAIN_TOKEN.address}`);
     return <TwainPrelaunch />;
   }

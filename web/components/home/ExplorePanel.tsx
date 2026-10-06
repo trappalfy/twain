@@ -20,10 +20,12 @@ export function ExplorePanel({ state }: { state: ExploreState }) {
   const pairs = (useAssets().data ?? []).filter((a) => a.coins > 0 || a.address === asset);
   const selected = pairs.find((a) => a.address === asset);
   const now = Math.floor(dataUpdatedAt / 1000); // "New" badge reference time, refreshed with every poll
-  // The official $TWAIN is pinned first on page 1 of the unfiltered list: its pre-launch card until its address is
-  // set (config/twain-token.ts), then the live coin (left out of the regular list below).
-  const pinned = page === 1 && asset === "all";
-  const official = useToken(pinned ? TWAIN_TOKEN.address : null);
+  // The official $TWAIN is pinned first on page 1 of the unfiltered list and of its own pair's list, in every sort and
+  // window: its pre-launch card until its address is set (config/twain-token.ts), then the live coin (left out of the
+  // regular list below). Nothing is pinned while it is hidden (`visible: false`).
+  const official = useToken(TWAIN_TOKEN.visible && page === 1 ? TWAIN_TOKEN.address : null);
+  const pinned =
+    TWAIN_TOKEN.visible && page === 1 && (asset === "all" || (!!official.data && official.data.asset.address.toLowerCase() === asset));
   const pinnedCard = !pinned ? null : !TWAIN_TOKEN.address ? (
     <TwainPrelaunchCard />
   ) : official.data ? (

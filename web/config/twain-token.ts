@@ -5,9 +5,13 @@ import type { Hex } from "@twain/shared";
  * pinned pre-launch card on Explore and a pre-launch page at /launchpad/twain, with no market data. After the launch
  * set `address` to its contract (lowercase): the card and the page switch to the live coin, and the indexer rebuilds
  * once (COIN_FILTER_ID changes) so the coin is indexed even though its name is reserved.
+ *
+ * `visible: false` takes $TWAIN off the site: no pinned card, /launchpad/twain and /twain answer 404, and a set
+ * address stays out of the Explore list (its own page by address still opens, to check it before showing it).
  */
 export const TWAIN_TOKEN: {
   address: Hex | null;
+  visible: boolean;
   name: string;
   symbol: string;
   image: string;
@@ -15,6 +19,7 @@ export const TWAIN_TOKEN: {
   x: string;
 } = {
   address: null,
+  visible: false,
   name: "twainpad",
   symbol: "TWAIN",
   image: "/brand/twain-token.png",
