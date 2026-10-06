@@ -6,6 +6,7 @@ import { useEffect, type ReactNode } from "react";
 import { zeroAddress } from "viem";
 import { useAccount, useReadContracts, useSwitchChain } from "wagmi";
 import { Button, Card, Skeleton, StatTile } from "@/components/ui";
+import { isTwainToken } from "@/config/twain-token";
 import { config } from "@/lib/config";
 import { useTx } from "@/lib/tx";
 import { appChain } from "@/lib/wagmi";
@@ -37,7 +38,8 @@ function money(m: PerAsset | null): { value: ReactNode; sub?: ReactNode } {
 
 /** Creator fees for the connected creator's own profile (id="creator-fees", linked from the wallet menu). */
 export function CreatorFees({ address, account }: { address: Hex; account: AccountResponse | undefined }) {
-  const created = account?.created ?? [];
+  // The official $TWAIN has no TwainFeeVault (launched on Pons directly; its fees go straight to its creator).
+  const created = (account?.created ?? []).filter((t) => !isTwainToken(t.address));
 
   // Wallet menu links to /profile#creator-fees; this block mounts after the wallet reconnects, so scroll here then.
   useEffect(() => {

@@ -111,6 +111,8 @@ export type LaunchInfo = OnchainInfo & {
   taxBps: number;
   poolFee: number;
   tickSpacing: number;
+  /** Pons creator fee recipient at launch: the coin's TwainFeeVault (the official $TWAIN: its creator's wallet). */
+  feeRecipient: Hex;
 };
 
 /** Pons launch config 0 (the ETH pair's economics). */

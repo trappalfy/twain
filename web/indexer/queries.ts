@@ -162,6 +162,8 @@ export async function hydrateDetail(db: IxDb, r: TokenRow): Promise<TokenDetail>
   return {
     ...summary!,
     startPriceX18: r.startPrice.toString(),
+    feeBps: r.feeBps,
+    taxBps: r.taxBps,
     graduationThreshold: r.graduationThreshold.toString(),
     quoteReserve: onCurve ? r.quoteReserve.toString() : null,
     tokenReserve: onCurve ? r.tokenReserve.toString() : null,

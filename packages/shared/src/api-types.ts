@@ -78,6 +78,8 @@ export type TokenSummary = {
 
 export type TokenDetail = TokenSummary & {
   startPriceX18: string;
+  feeBps: number; // Pons fee per trade (curve fee, then the hook's fee in the pool)
+  taxBps: number; // creator tax per trade (twain coins: CREATOR_TAX_BPS)
   graduationThreshold: string; // quote the curve raises before graduating
   quoteReserve: string | null; // curve reserves (phase = curve), null after graduation
   tokenReserve: string | null;

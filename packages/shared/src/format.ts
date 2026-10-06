@@ -104,6 +104,9 @@ export function formatPct(n: number, opts: { sign?: boolean } = {}): string {
   return opts.sign && n > 0 ? `+${s}` : s;
 }
 
+/** Basis points as a percentage: 100 → "1%", 250 → "2.5%". */
+export const formatBps = (bps: number | bigint) => `${+(Number(bps) / 100).toFixed(2)}%`;
+
 /** 0x9dDd…932e */
 export const shortAddress = (a: string, head = 6, tail = 4) =>
   a && a.length > head + tail ? `${a.slice(0, head)}…${a.slice(-tail)}` : a;

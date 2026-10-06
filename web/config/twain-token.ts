@@ -18,8 +18,8 @@ export const TWAIN_TOKEN: {
   description: string;
   x: string;
 } = {
-  address: null,
-  visible: false,
+  address: "0xb163228b3c371a752f297605a1dce34e12c85983",
+  visible: true,
   name: "twainpad",
   symbol: "TWAIN",
   image: "/brand/twain-token.png",

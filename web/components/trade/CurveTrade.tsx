@@ -5,6 +5,7 @@ import {
   BASIS_POINTS,
   COPY,
   formatAsset,
+  formatBps,
   formatPct,
   formatTokens,
   PARAMS,
@@ -117,7 +118,7 @@ export function CurveTrade({ token, side, slippageBps }: { token: TokenDetail; s
       tone: impact !== null && impact >= IMPACT_WARN_BPS ? "sell" : undefined,
     },
     {
-      label: `Fees (${PARAMS.tradeFeePct}${snipe > 0n ? " + snipe tax" : ""})`,
+      label: `Fees (${formatBps(token.feeBps + token.taxBps)}${snipe > 0n ? " + snipe tax" : ""})`,
       value: fees !== null && typed ? formatAsset(fees, asset) : "—",
       tone: snipe > 0n ? "sell" : undefined,
     },

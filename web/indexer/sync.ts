@@ -5,7 +5,8 @@
  *
  * Sources per range: the TwainLauncher, every coin with its Pons curve (until graduation) and fee vault, the Pons
  * factory (graduations, fee-recipient overrides, pair-token approvals — filtered to twain coins), PoolManager Swaps in
- * the graduated pools and the Pons hook's fee for those swaps. Once per schema, the factory's pair-token history
+ * the graduated pools and the Pons hook's fee for those swaps. The official $TWAIN launched on Pons directly: its
+ * Pons TokenLaunched stands in for CoinLaunched (config/twain-token.ts). Once per schema, the factory's pair-token history
  * before the launcher's start block is loaded too (the asset list).
  *
  * Concurrency: a lease row stops parallel instances from fetching the same range, and the cursor update is
@@ -14,8 +15,8 @@
 import { PONS_V2 } from "@twain/shared";
 import { ponsCurveAbi, ponsFactoryAbi, ponsTokenAbi } from "@twain/shared/abi";
 import { and, eq, lt } from "drizzle-orm";
-import { erc20Abi, hexToNumber, parseEventLogs, toEventSelector, type RpcLog } from "viem";
-import { isHiddenCoin } from "@/config/twain-token";
+import { erc20Abi, getAbiItem, hexToNumber, pad, parseEventLogs, toEventSelector, type RpcLog } from "viem";
+import { isHiddenCoin, TWAIN_TOKEN } from "@/config/twain-token";
 import { config } from "@/lib/config";
 import { ABIS, Batch, ponsPoolId, type AssetMeta, type DecodedLog, type EthEconomics, type Ev, type HookFee, type LaunchInfo } from "./apply";
 import { ixDb, ixTx, type IxDb } from "./db";
@@ -44,6 +45,16 @@ const [SWAP_TOPIC] = selectors(ABIS.pool);
 const [HOOK_FEE_TOPIC] = selectors(ABIS.hook);
 const APPROVAL_TOPIC = toEventSelector(ABIS.factory.find((e) => e.name === "PairTokenApprovalUpdated")!);
 const ECONOMICS_TOPIC = toEventSelector(ABIS.factory.find((e) => e.name === "PairTokenEconomicsUpdated")!);
+const TOKEN_LAUNCHED = [getAbiItem({ abi: ponsFactoryAbi, name: "TokenLaunched" })] as const;
+const TOKEN_LAUNCHED_TOPIC = toEventSelector(TOKEN_LAUNCHED[0]);
+/** The official $TWAIN, when its address is set. */
+const OFFICIAL = TWAIN_TOKEN.address ? lc(TWAIN_TOKEN.address) : null;
+
+/**
+ * Blocks with logs per range: their timestamps (and swap senders) cost one RPC call each, so a busy stretch — a hot
+ * coin's first minutes — is applied over several ranges and each sync stays within the public RPC's rate limit.
+ */
+const MAX_BLOCKS_PER_RANGE = 200;
 
 /** Addresses per eth_getLogs call, and topic values per call. */
 const ADDRESSES_PER_CALL = 500;
@@ -160,7 +171,7 @@ async function loadAssetHistory(db: IxDb, assetsCursor: number) {
 
 type Coin = { address: Hex; curve: Hex; vault: Hex; poolId: Hex; phase: string };
 
-/** Applies (cursor, to] — or a shorter range if the RPC refuses — and returns the new cursor. */
+/** Applies (cursor, to] — or a shorter range if the RPC refuses or the range is busy — and returns the new cursor. */
 async function syncRange(db: IxDb, cursor: number, to: number): Promise<number> {
   const [coins, assets] = await Promise.all([
     db.select({ address: token.address, curve: token.curve, vault: token.vault, poolId: token.poolId, phase: token.phase }).from(token),
@@ -172,7 +183,7 @@ async function syncRange(db: IxDb, cursor: number, to: number): Promise<number> 
   let events: Ev[];
   for (;;) {
     try {
-      events = await fetchEvents(from, end, coins, assets);
+      ({ events, end } = await fetchEvents(from, end, coins, assets));
       break;
     } catch (err) {
       // Too many logs or too wide a span for this RPC: halve the range. Small ranges fail for real.
@@ -202,8 +213,11 @@ async function knownAssets(db: IxDb): Promise<Set<Hex>> {
 
 type Role = { coin: Hex; role: "curve" | "vault" | "coin" };
 
-/** Our logs in [from, to], decoded, with block timestamps, swap senders and per-event context, in chain order. */
-async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<Hex>): Promise<Ev[]> {
+/**
+ * Our logs in [from, to], decoded, with block timestamps, swap senders and per-event context, in chain order. A busy
+ * range stops at its MAX_BLOCKS_PER_RANGE-th block with logs (`end`); the next range fetches the rest again.
+ */
+async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<Hex>): Promise<{ events: Ev[]; end: number }> {
   const roles = new Map<Hex, Role>();
   const addRoles = (c: { address: Hex; curve: Hex; vault: Hex }) => {
     roles.set(c.address, { coin: c.address, role: "coin" });
@@ -220,18 +234,29 @@ async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<
   const ownLogs = async (addresses: Hex[]) =>
     (await Promise.all(chunk(addresses, ADDRESSES_PER_CALL).map((a) => getLogs({ address: a, topics: [OWN_TOPICS] }, from, to)))).flat();
 
-  const [own, factoryRaw] = await Promise.all([
+  const officialPending = !!OFFICIAL && !coins.some((c) => c.address === OFFICIAL);
+  const [own, factoryRaw, officialRaw] = await Promise.all([
     ownLogs(watch),
     getLogs({ address: PONS_FACTORY, topics: [FACTORY_TOPICS] }, from, to),
+    officialPending ? getLogs({ address: PONS_FACTORY, topics: [TOKEN_LAUNCHED_TOPIC, pad(OFFICIAL!)] }, from, to) : Promise.resolve([]),
   ]);
 
   // Coins launched in this range: their own logs, constants and token info. Hidden coins (the owner's test launches,
   // impersonations of $TWAIN — config/twain-token.ts) are dropped here with everything they emit, so they never
   // reach a table: no list, page, stats or profile shows them.
   const launchedAll = parseEventLogs({ abi: ABIS.launcher, logs: own.filter((l) => lc(l.address) === LAUNCHER) });
-  const infos = await readLaunchInfos(
-    launchedAll.map((l) => ({ address: lc(l.args.coin), curve: lc(l.args.curve), vault: lc(l.args.vault), pairToken: lc(l.args.pairToken) })),
-  );
+  const [officialLaunch] = parseEventLogs({ abi: TOKEN_LAUNCHED, logs: officialRaw });
+  const infos = await readLaunchInfos([
+    ...launchedAll.map((l) => ({ address: lc(l.args.coin), curve: lc(l.args.curve) })),
+    ...(officialLaunch ? [{ address: lc(officialLaunch.args.token), curve: lc(officialLaunch.args.curve) }] : []),
+  ]);
+  // $TWAIN as a CoinLaunched: its deployer is the creator, its Pons creator fee recipient takes the vault's place.
+  if (officialLaunch) {
+    const { token: coin, deployer, pairToken, curve } = officialLaunch.args;
+    const vault = infos.get(lc(coin))!.feeRecipient;
+    const args = { coin, creator: deployer, pairToken, curve, vault, quoteIn: 0n, coinsOut: 0n };
+    launchedAll.push({ ...officialLaunch, eventName: "CoinLaunched", args } as unknown as (typeof launchedAll)[number]);
+  }
   const launched = launchedAll.filter((l) => {
     const coin = lc(l.args.coin);
     const info = infos.get(coin);
@@ -301,20 +326,26 @@ async function fetchEvents(from: number, to: number, coins: Coin[], assets: Set<
     ...factoryLogs,
     ...swaps,
   ];
-  if (decoded.length === 0) return [];
+  if (decoded.length === 0) return { events: [], end: to };
 
-  // Timestamps (the public RPC's logs carry none) and the senders of pool swaps (the traders).
-  const blockNums = [...new Set(decoded.map(blockOf))];
-  const swapTxs = [...new Set(swaps.filter((s) => lc(s.args.sender) !== MEME_HOOK).map((s) => lc(raw(s).transactionHash!)))];
-  const [blocks, txs] = await Promise.all([
-    mapLimit(blockNums, 4, (n) => rpc.getBlock({ blockNumber: BigInt(n), includeTransactions: false })),
-    mapLimit(swapTxs, 4, (hash) => rpc.getTransaction({ hash })),
-  ]);
+  let blockNums = [...new Set(decoded.map(blockOf))].sort((a, b) => a - b);
+  const end = blockNums.length > MAX_BLOCKS_PER_RANGE ? blockNums[MAX_BLOCKS_PER_RANGE - 1]! : to;
+  blockNums = blockNums.filter((n) => n <= end);
+  const kept = decoded.filter((l) => blockOf(l) <= end);
+
+  // Timestamps (the public RPC's logs carry none) and the senders of pool swaps (the traders), read from the blocks.
+  const traded = kept.filter((l) => l.eventName === "Swap" && lc(l.args.sender) !== MEME_HOOK);
+  const swapTxs = new Set(traded.map((s) => lc(raw(s).transactionHash!)));
+  const swapBlocks = new Set(traded.map(blockOf));
+  const blocks = await mapLimit(blockNums, 4, (n) => rpc.getBlock({ blockNumber: BigInt(n), includeTransactions: swapBlocks.has(n) }));
   const tsOf = new Map(blockNums.map((n, i) => [n, Number(blocks[i]!.timestamp)]));
-  const fromOf = new Map(swapTxs.map((h, i) => [h, lc(txs[i]!.from)]));
+  const fromOf = new Map<Hex, Hex>();
+  for (const b of blocks) {
+    for (const t of b.transactions) if (typeof t !== "string" && swapTxs.has(lc(t.hash))) fromOf.set(lc(t.hash), lc(t.from));
+  }
 
-  const events = withContext(decoded, { roles, infos, metas, eth, hookFees, tsOf, fromOf }).sort(chainOrder);
-  return launchesFirst(events);
+  const events = withContext(kept, { roles, infos, metas, eth, hookFees, tsOf, fromOf }).sort(chainOrder);
+  return { events: launchesFirst(events), end };
 }
 
 /* ------------------------------------------------------------------ helpers */
@@ -459,7 +490,7 @@ async function readLaunchInfos(coins: { address: Hex; curve: Hex }[]): Promise<M
       const [phantomQuote, graduationThreshold, reservedTokens, supply, feeBps, taxBps] = r.slice(0, 6) as bigint[];
       const [name, symbol] = r.slice(6, 8) as string[];
       const [, logo, description, socials] = r[8] as readonly [Hex, string, string, LaunchInfo["socials"]];
-      const launched = r[9] as { poolFee: number; tickSpacing: number };
+      const launched = r[9] as { poolFee: number; tickSpacing: number; creatorFeeRecipient: Hex };
       const info: LaunchInfo = {
         name: name!,
         symbol: symbol!,
@@ -474,6 +505,7 @@ async function readLaunchInfos(coins: { address: Hex; curve: Hex }[]): Promise<M
         taxBps: Number(taxBps),
         poolFee: Number(launched.poolFee),
         tickSpacing: Number(launched.tickSpacing),
+        feeRecipient: lc(launched.creatorFeeRecipient),
       };
       return [c.address, info];
     }),

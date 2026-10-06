@@ -3,10 +3,12 @@
 import {
   coinIsCurrency0,
   coinPhase,
+  CREATOR_TAX_BPS,
   curvePriceX18,
   curveProgressBps,
   mcapFromPriceX18,
   NATIVE_ASSET,
+  PONS_FEE_BPS,
   PONS_V2,
   priceX18FromSqrt,
   shortAddress,
@@ -20,6 +22,7 @@ import { useMemo } from "react";
 import { zeroAddress, type Address } from "viem";
 import { useReadContracts } from "wagmi";
 import { Button, Card, EmptyState } from "@/components/ui";
+import { isTwainToken } from "@/config/twain-token";
 import { LIVE_MS, useAssets } from "@/lib/api";
 import { config } from "@/lib/config";
 import { coinPoolKey, poolIdOf } from "@/lib/uniswap";
@@ -33,8 +36,9 @@ const PONS = PONS_V2.factory as Address;
 
 /**
  * The indexer has no record of this coin (just launched) or is unreachable: read it straight from Robinhood Chain —
- * its vault from TwainLauncher (none → not a twain coin), its Pons launch record (curve, pair, phase), ERC-20
- * name/symbol and its price (curve reserves, or the v4 pool after graduation) — and render the page with a note.
+ * its vault from TwainLauncher (none → not a twain coin; the official $TWAIN launched on Pons directly and has its
+ * creator fee recipient instead), its Pons launch record (curve, pair, phase), ERC-20 name/symbol and its price (curve
+ * reserves, or the v4 pool after graduation) — and render the page with a note.
  */
 export function OnchainFallback({
   address,
@@ -62,8 +66,9 @@ export function OnchainFallback({
     query: { enabled: configured, refetchInterval: LIVE_MS },
   });
   const [vaultRes, infoRes, nameRes, symbolRes] = reads.data ?? [];
-  const vault = vaultRes?.status === "success" ? vaultRes.result : undefined;
   const info = infoRes?.status === "success" ? infoRes.result : undefined;
+  const official = isTwainToken(address);
+  const vault = official ? info?.creatorFeeRecipient : vaultRes?.status === "success" ? vaultRes.result : undefined;
   const known = !!vault && !isZeroAddress(vault) && !!info?.exists;
   const assetAddr = (info?.pairToken ?? zeroAddress).toLowerCase() as Hex;
   const curve = (info?.curve ?? zeroAddress) as Address;
@@ -80,10 +85,12 @@ export function OnchainFallback({
       { address: assetAddr, abi: tokenAbi, functionName: "symbol" },
       { address: assetAddr, abi: tokenAbi, functionName: "decimals" },
       { address: (vault ?? zeroAddress) as Address, abi: twainFeeVaultAbi, functionName: "creator" },
+      { address: curve, abi: ponsCurveAbi, functionName: "feeBps" },
+      { address: curve, abi: ponsCurveAbi, functionName: "creatorTaxBps" },
     ],
     query: { enabled: known, refetchInterval: LIVE_MS },
   });
-  const [reservesRes, reservedRes, supplyRes, slot0Res, assetSymRes, assetDecRes, creatorRes] = second.data ?? [];
+  const [reservesRes, reservedRes, supplyRes, slot0Res, assetSymRes, assetDecRes, creatorRes, feeRes, taxRes] = second.data ?? [];
 
   const token = useMemo<TokenDetail | null>(() => {
     if (!info || !known || !vault) return null;
@@ -108,7 +115,7 @@ export function OnchainFallback({
     const sqrtPrice = slot0Res?.status === "success" ? slot0Res.result[0] : 0n;
     const price = phase === "curve" && reserves ? curvePriceX18(reserves[0], reserves[1]) : priceX18FromSqrt(sqrtPrice, coinIs0);
     const usdPerCoin = asset.usd == null ? null : (Number(price) / 1e18 / 10 ** asset.decimals) * asset.usd;
-    const creator = (creatorRes?.status === "success" ? creatorRes.result : zeroAddress).toLowerCase() as Hex;
+    const creator = (official ? info.deployer : creatorRes?.status === "success" ? creatorRes.result : zeroAddress).toLowerCase() as Hex;
     return {
       address: address.toLowerCase() as Hex,
       name: nameRes?.status === "success" ? nameRes.result : shortAddress(address),
@@ -139,6 +146,8 @@ export function OnchainFallback({
       lastBuyAt: null,
       lastTradeAt: null,
       startPriceX18: price.toString(),
+      feeBps: Number(feeRes?.status === "success" ? feeRes.result : PONS_FEE_BPS),
+      taxBps: Number(taxRes?.status === "success" ? taxRes.result : CREATOR_TAX_BPS),
       graduationThreshold: info.graduationThreshold.toString(),
       quoteReserve: reserves ? reserves[0].toString() : null,
       tokenReserve: reserves ? reserves[1].toString() : null,
@@ -147,7 +156,7 @@ export function OnchainFallback({
       coinFeesToCreator: "0",
       feeRecipientChange: null,
     };
-  }, [address, info, known, vault, listed, assetAddr, curve, nameRes, symbolRes, reservesRes, reservedRes, supplyRes, slot0Res, assetSymRes, assetDecRes, creatorRes, poolId]);
+  }, [address, info, known, vault, listed, assetAddr, curve, nameRes, symbolRes, reservesRes, reservedRes, supplyRes, slot0Res, assetSymRes, assetDecRes, creatorRes, feeRes, taxRes, official, poolId]);
 
   if (configured && reads.isPending) return <TokenPageSkeleton />;
 

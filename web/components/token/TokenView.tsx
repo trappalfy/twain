@@ -7,6 +7,7 @@ import { useAccount as useWallet } from "wagmi";
 import { CreatorFeesCard } from "@/components/trade/CreatorFeesCard";
 import { TradePanel } from "@/components/trade/TradePanel";
 import { Button, Sheet } from "@/components/ui";
+import { isTwainToken } from "@/config/twain-token";
 import { sameAddress } from "./links";
 import { TokenChart } from "./TokenChart";
 import { PairCard } from "./PairCard";
@@ -45,7 +46,7 @@ export function TokenView({
         <aside className="min-w-0 space-y-4 md:space-y-6 lg:col-start-2 lg:row-span-3 lg:row-start-1">
           <div className="hidden lg:block">{isDesktop && <TradePanel token={token} initialSide={initialSide} />}</div>
           <PairCard token={token} />
-          {isCreator && <CreatorFeesCard token={token} />}
+          {isCreator && !isTwainToken(token.address) && <CreatorFeesCard token={token} />}
         </aside>
 
         <TokenChart token={token} indexing={indexing} className="min-w-0 lg:col-start-1" />
